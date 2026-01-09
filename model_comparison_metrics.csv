@@ -1,0 +1,5 @@
+Model,Accuracy,MSE,MAE,R2_Score,Cross_Val_Mean,Cross_Val_Std
+Linear Regression,N/A,94137.67,271.39,-0.0149,94769.61,3264.51
+Random Forest,0.5033,N/A,N/A,N/A,0.4637,0.0202
+Gaussian NB,0.4317,N/A,N/A,N/A,0.4333,0.0395
+Deep ANN,0.4950,N/A,N/A,N/A,N/A,N/A
