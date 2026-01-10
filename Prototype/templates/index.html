@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Placement Prediction System for Children's Social Care</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <h1>AI-Powered Placement Prediction System for Children's Social Care</h1>
+    <div class="container">
+        <header>
+            <h3>Child Placement Prediction Dashboard</h3>
+            <p class="subtitle">AI Model Comparison and Analysis</p>
+        </header>
+
+        <main>
+            <section class="model-selection">
+                <h2>Select Model to Test</h2>
+                <div class="model-buttons">
+                    <button class="model-btn" data-model="linear">Linear Regression</button>
+                    <button class="model-btn" data-model="random-forest">Random Forest</button>
+                    <button class="model-btn" data-model="gaussian-nb">Gaussian Naive Bayes</button>
+                    <button class="model-btn" data-model="deep-ann">Deep ANN</button>
+                </div>
+            </section>
+
+            <section class="placement-selection">
+                <h2>Select Placement Types (2-4 types)</h2>
+                <div class="placement-checkboxes">
+                    <label><input type="checkbox" name="placement" value="Fostering - Long Term"> Fostering - Long Term</label>
+                    <label><input type="checkbox" name="placement" value="Fostering - Short Term"> Fostering - Short Term</label>
+                    <label><input type="checkbox" name="placement" value="Kinship"> Kinship</label>
+                    <label><input type="checkbox" name="placement" value="Residential"> Residential</label>
+                    <label><input type="checkbox" name="placement" value="Special Guardianship"> Special Guardianship</label>
+                    <label><input type="checkbox" name="placement" value="Fostering - Emergency"> Fostering - Emergency</label>
+                    <label><input type="checkbox" name="placement" value="Fostering - Respite"> Fostering - Respite</label>
+                    <label><input type="checkbox" name="placement" value="Adoption"> Adoption</label>
+                </div>
+            </section>
+
+            <section class="input-form">
+                <h2>Enter Input Data</h2>
+                <form id="prediction-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="child-age">Child Age At Placement:</label>
+                            <input type="number" id="child-age" name="childAge" min="0" max="18" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="child-gender">Child Gender:</label>
+                            <select id="child-gender" name="childGender" required>
+                                <option value="">Select...</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="child-ethnicity">Child Ethnicity:</label>
+                            <input type="text" id="child-ethnicity" name="childEthnicity" placeholder="e.g., White - British" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="carer-age">Carer Age:</label>
+                            <input type="number" id="carer-age" name="carerAge" min="18" max="100" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="carer-gender">Carer Gender:</label>
+                            <select id="carer-gender" name="carerGender" required>
+                                <option value="">Select...</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="carer-ethnicity">Carer Ethnicity:</label>
+                            <input type="text" id="carer-ethnicity" name="carerEthnicity" placeholder="e.g., White - British" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="submit-btn">Run Comparison</button>
+                </form>
+            </section>
+
+            <section class="results-section" id="results" style="display: none;">
+                <h2>Model Comparison Results</h2>
+                <div id="metrics-container"></div>
+                <div class="visualizations">
+                    <img id="comparison-viz" src="" alt="Model Comparison Visualization">
+                    <img id="placement-viz" src="" alt="Placement Type Predictions">
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+</body>
+</html>
