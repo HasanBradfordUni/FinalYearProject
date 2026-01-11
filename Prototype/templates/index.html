@@ -4,95 +4,214 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-Powered Placement Prediction System for Children's Social Care</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
+
 <body>
+
     <h1>AI-Powered Placement Prediction System for Children's Social Care</h1>
+
     <div class="container">
+
         <header>
             <h3>Child Placement Prediction Dashboard</h3>
-            <p class="subtitle">AI Model Comparison and Analysis</p>
+            <p class="subtitle">AI Prototype – Placement Stability Prediction</p>
         </header>
 
-        <main>
-            <section class="model-selection">
-                <h2>Select Model to Test</h2>
-                <div class="model-buttons">
-                    <button class="model-btn" data-model="linear">Linear Regression</button>
-                    <button class="model-btn" data-model="random-forest">Random Forest</button>
-                    <button class="model-btn" data-model="gaussian-nb">Gaussian Naive Bayes</button>
-                    <button class="model-btn" data-model="deep-ann">Deep ANN</button>
-                </div>
-            </section>
+        <!-- ===========================
+             MAIN TWO-COLUMN SECTION
+        ============================ -->
+        <div class="two-column">
 
-            <section class="placement-selection">
-                <h2>Select Placement Types (2-4 types)</h2>
-                <div class="placement-checkboxes">
-                    <label><input type="checkbox" name="placement" value="Fostering - Long Term"> Fostering - Long Term</label>
-                    <label><input type="checkbox" name="placement" value="Fostering - Short Term"> Fostering - Short Term</label>
-                    <label><input type="checkbox" name="placement" value="Kinship"> Kinship</label>
-                    <label><input type="checkbox" name="placement" value="Residential"> Residential</label>
-                    <label><input type="checkbox" name="placement" value="Special Guardianship"> Special Guardianship</label>
-                    <label><input type="checkbox" name="placement" value="Fostering - Emergency"> Fostering - Emergency</label>
-                    <label><input type="checkbox" name="placement" value="Fostering - Respite"> Fostering - Respite</label>
-                    <label><input type="checkbox" name="placement" value="Adoption"> Adoption</label>
-                </div>
-            </section>
+            <!-- ===========================
+                 LEFT FORM – CHILD & CARER ATTRIBUTES
+            ============================ -->
+            <section class="form-box">
+                <h2>Enter Placement Attributes</h2>
 
-            <section class="input-form">
-                <h2>Enter Input Data</h2>
-                <form id="prediction-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="child-age">Child Age At Placement:</label>
-                            <input type="number" id="child-age" name="childAge" min="0" max="18" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="child-gender">Child Gender:</label>
-                            <select id="child-gender" name="childGender" required>
-                                <option value="">Select...</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="child-ethnicity">Child Ethnicity:</label>
-                            <input type="text" id="child-ethnicity" name="childEthnicity" placeholder="e.g., White - British" required>
-                        </div>
+                <form id="attributes-form" method="POST" action="/predict">
+
+                    <div class="form-group">
+                        <label>Child Age at Placement:</label>
+                        <input type="number" name="childAge" min="0" max="18" required>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="carer-age">Carer Age:</label>
-                            <input type="number" id="carer-age" name="carerAge" min="18" max="100" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="carer-gender">Carer Gender:</label>
-                            <select id="carer-gender" name="carerGender" required>
-                                <option value="">Select...</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="carer-ethnicity">Carer Ethnicity:</label>
-                            <input type="text" id="carer-ethnicity" name="carerEthnicity" placeholder="e.g., White - British" required>
-                        </div>
+
+                    <div class="form-group">
+                        <label>Child Gender:</label>
+                        <select name="childGender" required>
+                            <option value="">Select...</option>
+                            {% for g in gender_options %}
+                                <option value="{{ g }}">{{ g }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <button type="submit" class="submit-btn">Run Comparison</button>
+
+                    <div class="form-group">
+                        <label>Child Ethnicity:</label>
+                        <select name="childEthnicity" required>
+                            <option value="">Select...</option>
+                            {% for e in ethnicity_options %}
+                                <option value="{{ e }}">{{ e }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Carer Age:</label>
+                        <input type="number" name="carerAge" min="25" max="75" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Carer Gender:</label>
+                        <select name="carerGender" required>
+                            <option value="">Select...</option>
+                            {% for g in gender_options %}
+                                <option value="{{ g }}">{{ g }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Carer Ethnicity:</label>
+                        <select name="carerEthnicity" required>
+                            <option value="">Select...</option>
+                            {% for e in ethnicity_options %}
+                                <option value="{{ e }}">{{ e }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Predict Stability</button>
                 </form>
             </section>
 
-            <section class="results-section" id="results" style="display: none;">
-                <h2>Model Comparison Results</h2>
-                <div id="metrics-container"></div>
-                <div class="visualizations">
-                    <img id="comparison-viz" src="" alt="Model Comparison Visualization">
-                    <img id="placement-viz" src="" alt="Placement Type Predictions">
-                </div>
+            <!-- ===========================
+                 RIGHT FORM – PLACEMENT TYPE COMPARISON
+            ============================ -->
+            <section class="form-box">
+                <h2>Compare Placement Profiles</h2>
+
+                <form id="comparison-form" method="POST" action="">
+
+                    <div class="form-group">
+                        <label>Select Placement Profile:</label>
+                        <select name="profileName" required>
+                            <option value="">Select...</option>
+                            {% for profile in placement_profiles %}
+                                <option value="{{ profile.name }}">{{ profile.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Select Placement Types (2–4):</label>
+                        <div class="checkbox-list">
+                            {% for pt in placement_types %}
+                                <label>
+                                    <input type="checkbox" name="placementTypes" value="{{ pt }}">
+                                    {{ pt }}
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Compare Types</button>
+                </form>
             </section>
-        </main>
+
+        </div>
+
+        <!-- ===========================
+             PROFILE MANAGEMENT SECTION
+        ============================ -->
+        <section class="profile-management">
+
+            <h2>Manage Placement Profiles</h2>
+
+            <div class="profile-list">
+                <h3>Existing Profiles</h3>
+                {% if placement_profiles %}
+                    <ul>
+                        {% for profile in placement_profiles %}
+                            <li>
+                                <strong>{{ profile.name }}</strong> –
+                                Child: {{ profile.childAge }} yrs, {{ profile.childGender }}, {{ profile.childEthnicity }} |
+                                Carer: {{ profile.carerAge }} yrs, {{ profile.carerGender }}, {{ profile.carerEthnicity }}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No profiles added yet.</p>
+                {% endif %}
+            </div>
+
+            <div class="add-profile">
+                <h3>Add New Placement Profile</h3>
+
+                <form id="add-profile-form" method="POST" action="">
+
+                    <div class="form-group">
+                        <label>Profile Name:</label>
+                        <input type="text" name="profileName" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Child Age:</label>
+                            <input type="number" name="childAge" min="0" max="18" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Child Gender:</label>
+                            <select name="childGender" required>
+                                {% for g in gender_options %}
+                                    <option value="{{ g }}">{{ g }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Child Ethnicity:</label>
+                            <select name="childEthnicity" required>
+                                {% for e in ethnicity_options %}
+                                    <option value="{{ e }}">{{ e }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Carer Age:</label>
+                            <input type="number" name="carerAge" min="25" max="75" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Carer Gender:</label>
+                            <select name="carerGender" required>
+                                {% for g in gender_options %}
+                                    <option value="{{ g }}">{{ g }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Carer Ethnicity:</label>
+                            <select name="carerEthnicity" required>
+                                {% for e in ethnicity_options %}
+                                    <option value="{{ e }}">{{ e }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Add Profile</button>
+                </form>
+            </div>
+
+        </section>
+
     </div>
 
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
 </body>
 </html>
