@@ -100,9 +100,8 @@ h2 {
 }
 
 .placement-checkboxes {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 15px;
+    display: flex;
+    margin: 10px;
 }
 
 .placement-checkboxes label {
@@ -299,21 +298,57 @@ h2 {
     border-radius: 10px;
     box-shadow: 0 0 12px rgba(0,0,0,0.08);
 }
+
 .section-title {
     font-weight: 600;
     margin-bottom: 15px;
     font-size: 1.25rem;
 }
+
 .result-box {
     background: #eef4ff;
     padding: 20px;
     border-radius: 8px;
     margin-top: 20px;
 }
+
 .prediction-item {
     background: #ffffff;
     padding: 12px 15px;
     border-radius: 6px;
     margin-bottom: 10px;
     border-left: 4px solid #0d6efd;
+}
+
+/* Grid container for profile cards */
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin-top: 10px;
+}
+
+/* Individual profile card */
+.profile-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: 2px solid #764ba2;
+    border-radius: 12px;
+    padding: 15px 20px;
+    color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Hover effect */
+.profile-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+}
+
+/* Card title */
+.profile-card h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+    font-weight: bold;
 }

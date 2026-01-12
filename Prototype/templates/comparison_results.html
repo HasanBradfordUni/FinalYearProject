@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Placement Comparison Results</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+
+<div class="container container-box">
+
+    <h2 class="mb-4">Placement Type Comparison</h2>
+
+    <p class="section-title">
+        Comparison results for placement profile:
+        <strong>{{ profile_name }}</strong>
+        with the following details:
+    </p>
+
+    <ul>
+        <li><strong>Child Age at Placement:</strong> {{ profile.childAge }} years</li>
+        <li><strong>Child Gender:</strong> {{ profile.childGender }}</li>
+        <li><strong>Child Ethnicity:</strong> {{ profile.childEthnicity }}</li>
+        <li><strong>Carer Age:</strong> {{ profile.carerAge }} years</li>
+        <li><strong>Carer Gender:</strong> {{ profile.carerGender }}</li>
+        <li><strong>Carer Ethnicity:</strong> {{ profile.carerEthnicity }}</li>
+    </ul>
+
+    <div class="result-box">
+        <p class="section-title">Predicted stability for selected placement types:</p>
+
+        {% if predictions %}
+            {% for item in predictions %}
+                <div class="prediction-item">
+                    <strong>{{ item.type }}</strong>
+                    <br>
+                    Estimated Duration: <strong>{{ item.days }} days</strong>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No predictions available for the selected placement types.</p>
+        {% endif %}
+    </div>
+
+    <a href="/" class="btn btn-primary mt-4">Back to Dashboard</a>
+
+</div>
+
+</body>
+</html>
