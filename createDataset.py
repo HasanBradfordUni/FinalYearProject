@@ -4,20 +4,17 @@ from datetime import datetime, timedelta
 class DatasetBuilder:
     def __init__(self):
         self.__filePath = "dataset.csv"
-        genders = ["Non binary", "Indeterminate", "Unknown", "NULL", "Male",
-                   "Unborn", "Trans Female", "Female", "Unspecified", "Trans Male"]
-        ethnicities = ["Information Not Yet Obtained", "Asian/British Asian – Chinese",
-                       "Asian/British Asian – Other", "Black/Black British – Other",
-                       "Gypsy / Roma", "Black/Black British – African", "White – British",
-                       "White – Irish", "Asian/British Asian – Indian", "Unknown",
-                       "White – Other", "Black/Black British – Caribbean", "NULL",
-                       "Asian/British Asian – Pakistani", "Asian/British Asian – Bangladeshi",
+        genders = ["Non binary", "Male", "Trans Female", "Female", "Trans Male"]
+        ethnicities = ["Asian/British Asian - Chinese", "Asian/British Asian - Other",
+                       "Black/Black British - Other", "Gypsy / Roma", "Black/Black British - African",
+                       "White - British", "White - Irish", "Asian/British Asian - Indian",
+                       "White - Other", "Black/Black British - Caribbean",
+                       "Asian/British Asian - Pakistani", "Asian/British Asian - Bangladeshi",
                        "Mixed - White/Black African", "Traveller of Irish Heritage",
-                       "Mixed - White/Asian", "Refused", "Mixed – Other", "Traveller – Other",
-                       "Gypsy", "Roma", "White - Central European", "Mixed - White/Black Caribbean",
-                       "Other Ethnic Group", "Dual Heritage - Black/White", "White - Eastern European"]
+                       "Mixed - White/Asian", "Mixed - Other", "Traveller - Other",
+                       "White - Central European", "Mixed - White/Black Caribbean",
+                       "Dual Heritage - Black/White", "White - Eastern European"]
 
-        # UPDATED PLACEMENT TYPE WEIGHTINGS BASED ON REAL DATA
         placement_types = [
             "Fostering - Long Term",
             "Fostering - Short Term",
@@ -29,6 +26,7 @@ class DatasetBuilder:
             "Adoption"
         ]
 
+        # PLACEMENT TYPE WEIGHTINGS BASED ON REAL DATA
         placement_weights = [
             0.045,   # Fostering - Long Term
             0.204,   # Fostering - Short Term
@@ -82,17 +80,17 @@ class DatasetBuilder:
         }
 
         self.__weighting = ([
-            "Eq", [0.05, 0, 0, 0, 0.36, 0, 0.1, 0.4, 0, 0.09],
-            [[0, 0.002, 0.015, 0.002, 0.005, 0.013, 0.567, 0.004, 0.026, 0,
-             0.036, 0.005, 0, 0.255, 0.023, 0.002, 0.002, 0.012, 0, 0.005,
-             0.005, 0.002, 0.003, 0.036, 0.008, 0.015, 0.005, 0.036], "Max 5"],
-            [0.55, 0.30, 0.10, 0.03, 0.02], [0.6, 0.4], "Eq", "Min 25, Max 75", placement_weights,
-            [0, 0.5, 0.25, 0.12, 0.06, 0.03, 0.02, 0.01, 0.01], "Min 1, Max 1000", "Max 5",
-            [[0.05, 0, 0, 0, 0.36, 0, 0.1, 0.4, 0, 0.09], "Max 5"], "Eq", "Eq", "Eq", "Eq", "Eq",
-            [0.6, 0, 0.2, 0.1, 0.05, 0.03, 0.01, 0.01], "Eq", "Max 17", "Eq",
-            [[0, 0.002, 0.015, 0.002, 0.005, 0.013, 0.567, 0.004, 0.026, 0,
-              0.036, 0.005, 0, 0.255, 0.023, 0.002, 0.002, 0.012, 0, 0.005,
-              0.005, 0.002, 0.003, 0.036, 0.008, 0.015, 0.005, 0.036], "Max 5"],
+            "Eq", [0.05, 0.36, 0.1, 0.4, 0.09],
+            [0.002, 0.015, 0.002, 0.005, 0.013, 0.567, 0.004, 0.026,
+             0.036, 0.005, 0.255, 0.023, 0.002, 0.002, 0.012, 0.005,
+             0.005, 0.036, 0.008, 0.015, 0.005, 0.036],
+            [0.55, 0.30, 0.10, 0.03, 0.02], [0.6, 0.4], "Eq", "Min 25, Max 75",
+            placement_weights, [0, 0.5, 0.25, 0.12, 0.06, 0.03, 0.02, 0.01, 0.01],
+            "Min 1, Max 1000", "Max 5", [[0.05, 0.36, 0.1, 0.4, 0.09], "Max 5"], "Eq", "Eq",
+            "Eq", "Eq", "Eq", [0.6, 0, 0.2, 0.1, 0.05, 0.03, 0.01, 0.01], "Eq", "Max 17", "Eq",
+            [[0.002, 0.015, 0.002, 0.005, 0.013, 0.567, 0.004, 0.026,
+              0.036, 0.005, 0.255, 0.023, 0.002, 0.002, 0.012, 0.005,
+              0.005, 0.036, 0.008, 0.015, 0.005, 0.036], "Max 5"],
             "Eq", [0.3, 0.7], [0.25, 0.75], [0.1, 0.9]
         ])
 
@@ -182,13 +180,36 @@ class DatasetBuilder:
 
             columns["Distance From Home (miles)"][i] = round(distance, 2)
 
-            columns["Carer Age"][i] = [random.randint(25, 75) for _ in range(num_carers)]
+            # Carer Age
+            if num_carers == 1:
+                columns["Carer Age"][i] = random.randint(25, 75)
+            else:
+                columns["Carer Age"][i] = [random.randint(25, 75) for _ in range(num_carers)]
 
+            # Carer Gender Composition (weighted)
             genders = self.__fields["Child Gender"]
-            columns["Carer Gender Composition"][i] = [random.choice(genders) for _ in range(num_carers)]
+            gender_weights = [0.05, 0.36, 0.1, 0.4, 0.09]
 
+            if num_carers == 1:
+                columns["Carer Gender Composition"][i] = random.choices(genders, weights=gender_weights)[0]
+            else:
+                columns["Carer Gender Composition"][i] = [
+                    random.choices(genders, weights=gender_weights)[0] for _ in range(num_carers)
+                ]
+
+            # Carer Ethnicity or Religion (weighted)
             ethnicities = self.__fields["Child Ethnicity"]
-            columns["Carer Ethnicity Or Religion"][i] = [random.choice(ethnicities) for _ in range(num_carers)]
+            ethnicity_weights = [
+                0.002, 0.015, 0.002, 0.005, 0.013, 0.567, 0.004, 0.026, 0.036, 0.005, 0.255,
+                0.023, 0.002, 0.002, 0.012, 0.005, 0.005, 0.036, 0.008, 0.015, 0.036
+            ]
+
+            if num_carers == 1:
+                columns["Carer Ethnicity Or Religion"][i] = random.choices(ethnicities, weights=ethnicity_weights)[0]
+            else:
+                columns["Carer Ethnicity Or Religion"][i] = [
+                    random.choices(ethnicities, weights=ethnicity_weights)[0] for _ in range(num_carers)
+                ]
 
             sibling_size = columns["Sibling Group Size"][i]
             if sibling_size > 1:
@@ -197,8 +218,14 @@ class DatasetBuilder:
                 columns["Siblings In EH"][i] = False
 
             length_days = random.choices(
-                [random.randint(1, 7), random.randint(30, 200), random.randint(200, 1000)],
-                weights=[0.1, 0.4, 0.5]
+                [
+                    random.randint(0, 100),
+                    random.randint(101, 300),
+                    random.randint(301, 600),
+                    random.randint(601, 900),
+                    random.randint(901, 1000)
+                ],
+                weights=[0.023, 0.160, 0.291, 0.381, 0.146]
             )[0]
 
             columns["Placement Time Period (days)"][i] = length_days

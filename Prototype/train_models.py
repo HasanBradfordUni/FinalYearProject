@@ -10,7 +10,6 @@ import os
 # Load dataset
 def load_data(file_path):
     data = pd.read_csv(file_path, encoding='utf-8')
-    print(data.columns.tolist())
 
     # Selected features INCLUDING placement type
     feature_cols = [
