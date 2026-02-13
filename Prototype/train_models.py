@@ -1,7 +1,6 @@
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
@@ -19,33 +18,53 @@ def load_data(file_path):
 
     x = data[feature_cols].copy()
 
-    # Create encoders
-    encoders = {}
-    categorical_columns = [
-        "Child Gender", "Child Ethnicity", "Carer Gender Composition",
-        "Carer Ethnicity Or Religion", "Placement Type"
+    # Categorical input columns (safe to assign Unknown)
+    input_categorical_columns = [
+        "Child Gender", "Child Ethnicity",
+        "Carer Gender Composition", "Carer Ethnicity Or Religion"
     ]
 
-    for col in categorical_columns:
+    # Target categorical column (DO NOT assign Unknown)
+    target_column = "Placement Type"
+
+    # Fill missing categorical values for INPUT features only
+    for col in input_categorical_columns:
+        x[col] = x[col].astype(str).fillna("Unknown")
+
+    # Numeric columns: convert + fill missing with median
+    numeric_columns = ["Child Age At Placement", "Carer Age"]
+
+    for col in numeric_columns:
+        x[col] = pd.to_numeric(x[col], errors='coerce')
+        median_val = x[col].median()
+        x[col] = x[col].fillna(median_val)
+
+    # Create encoders
+    encoders = {}
+
+    # Encode input categorical columns
+    for col in input_categorical_columns:
         le = LabelEncoder()
         x[col] = le.fit_transform(x[col].astype(str))
         encoders[col] = le
 
-    # Numeric columns
-    x["Child Age At Placement"] = pd.to_numeric(x["Child Age At Placement"], errors='coerce').fillna(0)
-    x["Carer Age"] = pd.to_numeric(x["Carer Age"], errors='coerce').fillna(0)
+    # Encode Placement Type separately (no Unknown allowed)
+    placement_le = LabelEncoder()
+    x[target_column] = placement_le.fit_transform(x[target_column].astype(str))
+    placement_encoder = placement_le
 
-    # Classification target (placement type)
-    placement_type_encoder = encoders["Placement Type"]
-    y_classification = x["Placement Type"].values
+    # Classification target
+    y_classification = x[target_column].values
 
     # Regression target
-    y_regression = pd.to_numeric(data["Placement Time Period (days)"], errors='coerce').fillna(0)
+    y_regression = pd.to_numeric(
+        data["Placement Time Period (days)"], errors='coerce'
+    ).fillna(0)
 
     # Remove placement type from X for classification
-    x_class = x.drop(columns=["Placement Type"])
+    x_class = x.drop(columns=[target_column])
 
-    return x, x_class, y_classification, y_regression, encoders, placement_type_encoder
+    return x, x_class, y_classification, y_regression, encoders, placement_le
 
 # Train the Linear Regression model
 def run_linear_regression(x, y):
@@ -59,7 +78,7 @@ def run_random_forest(x, y):
     model.fit(x, y)
     return model
 
-# Main function that loads the dataset, trains the models and saves them via joblib to be used in the app
+# Main function that loads the dataset, trains the models and saves them via joblib
 def main():
     x_reg, x_class, y_class, y_reg, encoders, placement_encoder = load_data("dataset.csv")
 
@@ -77,7 +96,5 @@ def main():
 
     print("Models and encoders saved successfully.")
 
-# Execute main function if this script is run directly
 if __name__ == "__main__":
     main()
-

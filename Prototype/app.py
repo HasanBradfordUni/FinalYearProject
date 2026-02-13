@@ -25,7 +25,7 @@ ethnicity_options = ["Asian/British Asian - Chinese", "Asian/British Asian - Oth
                      "White - British", "White - Irish", "Asian/British Asian - Indian",
                      "White - Other", "Black/Black British - Caribbean", "Asian/British Asian - Pakistani",
                      "Asian/British Asian - Bangladeshi", "Mixed - White/Black African",
-                     "Mixed - White/Asian", "Mixed - Other", "Traveller - Other", "Gypsy", "Roma",
+                     "Mixed - White/Asian", "Mixed - Other", "Traveller - Other",
                      "White - Central European", "Mixed - White/Black Caribbean",
                      "Other Ethnic Group", "Dual Heritage - Black/White", "White - Eastern European"]
 gender_options = ["Non binary", "Male", "Trans Female", "Female", "Trans Male"] #list of all gender options
@@ -177,23 +177,29 @@ def preprocess_input(form):
     Prepares user input so it matches the exact feature structure
     used during model training.
     """
+    def get_value(key, default):
+        val = form.get(key)
+        return val if val not in [None, "", "None"] else default
 
+    # Setup a dataframe with entered/default values (if blank) for all features (except placement type)
     df = pd.DataFrame([{
-        "Child Age At Placement": float(form["childAge"]),
-        "Child Gender": form["childGender"],
-        "Child Ethnicity": form["childEthnicity"],
-        "Carer Age": float(form["carerAge"]),
-        "Carer Gender Composition": form["carerGender"],
-        "Carer Ethnicity Or Religion": form["carerEthnicity"],
+        "Child Age At Placement": float(get_value("childAge", 10)),  # median age
+        "Child Gender": get_value("childGender", "Unknown"),
+        "Child Ethnicity": get_value("childEthnicity", "Unknown"),
+        "Carer Age": float(get_value("carerAge", 45)),  # median carer age
+        "Carer Gender Composition": get_value("carerGender", "Unknown"),
+        "Carer Ethnicity Or Religion": get_value("carerEthnicity", "Unknown"),
         "Placement Type": None   # placeholder, DO NOT ENCODE HERE
     }])
 
     # Apply encoders to all columns EXCEPT Placement Type
     for col, encoder in feature_encoders.items():
         if col != "Placement Type":
-            df[col] = encoder.transform(df[col].astype(str))
+            # Ensure Unknown is valid for input columns only
+            df[col] = df[col].astype(str)
+            df[col] = encoder.transform(df[col])
 
-    # For now, set Placement Type to 0 (will be replaced later)
+    # For now, set Placement Type to 0 (will be replaced later when predicting via random forest)
     df["Placement Type"] = 0
 
     return df.values

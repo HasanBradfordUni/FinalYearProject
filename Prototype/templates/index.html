@@ -33,12 +33,12 @@
 
                     <div class="form-group">
                         <label>Child Age at Placement:</label>
-                        <input type="number" name="childAge" min="0" max="18" required>
+                        <input type="number" name="childAge" min="0" max="18">
                     </div>
 
                     <div class="form-group">
                         <label>Child Gender:</label>
-                        <select name="childGender" required>
+                        <select name="childGender">
                             <option value="">Select...</option>
                             {% for g in gender_options %}
                                 <option value="{{ g }}">{{ g }}</option>
@@ -48,7 +48,7 @@
 
                     <div class="form-group">
                         <label>Child Ethnicity:</label>
-                        <select name="childEthnicity" required>
+                        <select name="childEthnicity">
                             <option value="">Select...</option>
                             {% for e in ethnicity_options %}
                                 <option value="{{ e }}">{{ e }}</option>
@@ -58,12 +58,12 @@
 
                     <div class="form-group">
                         <label>Carer Age:</label>
-                        <input type="number" name="carerAge" min="25" max="75" required>
+                        <input type="number" name="carerAge" min="25" max="75">
                     </div>
 
                     <div class="form-group">
                         <label>Carer Gender:</label>
-                        <select name="carerGender" required>
+                        <select name="carerGender">
                             <option value="">Select...</option>
                             {% for g in gender_options %}
                                 <option value="{{ g }}">{{ g }}</option>
@@ -73,7 +73,7 @@
 
                     <div class="form-group">
                         <label>Carer Ethnicity:</label>
-                        <select name="carerEthnicity" required>
+                        <select name="carerEthnicity">
                             <option value="">Select...</option>
                             {% for e in ethnicity_options %}
                                 <option value="{{ e }}">{{ e }}</option>
