@@ -17,8 +17,11 @@ from .utils import (prepare_prediction_input, generate_predictions_list,
 import os
 import joblib
 
-app = Blueprint('app', __name__)
-db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'placements.db')
+# Calculate template folder relative to routes.py
+template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
+
+app = Blueprint('app', __name__, template_folder=template_dir)
+db_path = os.path.join(os.path.dirname(__file__), 'static', 'placements.db')
 connection = create_connection(db_path)
 if connection:
     create_tables(connection)
