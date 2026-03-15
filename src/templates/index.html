@@ -1,313 +1,49 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-Powered Placement Prediction System for Children's Social Care</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-</head>
+{% extends "base.html" %}
 
-<body>
+{% block title %}Prediction | BCFT Placement Stability System{% endblock %}
 
-    <h1>AI-Powered Placement Prediction System for Children's Social Care</h1>
+{% block content %}
+    <section class="panel">
+        <h1>Generate Placement Stability Prediction</h1>
+        <p class="muted">Enter child and carer data to generate AI-powered placement stability predictions.</p>
 
-    <div class="container">
+        <form method="POST" action="{{ url_for('app.predict') }}" class="stack-form">
+            {{ form.hidden_tag() }}
 
-        <header>
-            <h3>Child Placement Prediction Dashboard</h3>
-            <p class="subtitle">AI Prototype – Placement Stability Prediction</p>
-        </header>
-
-        <!-- ===========================
-             MAIN TWO-COLUMN SECTION
-        ============================ -->
-        <div class="two-column">
-
-            <!-- ===========================
-                 LEFT FORM – CHILD & CARER ATTRIBUTES
-            ============================ -->
-            <section class="form-box">
-                <h2>Enter Placement Attributes</h2>
-
-                <form id="attributes-form" method="POST" action="/predict">
-
-                    <div class="form-group">
-                        <label>Child Age at Placement:</label>
-                        <input type="number" name="childAge" min="0" max="18">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Child Gender:</label>
-                        <select name="childGender">
-                            <option value="">Select...</option>
-                            {% for g in gender_options %}
-                                <option value="{{ g }}">{{ g }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Child Ethnicity:</label>
-                        <select name="childEthnicity">
-                            <option value="">Select...</option>
-                            {% for e in ethnicity_options %}
-                                <option value="{{ e }}">{{ e }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Carer Age:</label>
-                        <input type="number" name="carerAge" min="25" max="75">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Carer Gender:</label>
-                        <select name="carerGender">
-                            <option value="">Select...</option>
-                            {% for g in gender_options %}
-                                <option value="{{ g }}">{{ g }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Carer Ethnicity:</label>
-                        <select name="carerEthnicity">
-                            <option value="">Select...</option>
-                            {% for e in ethnicity_options %}
-                                <option value="{{ e }}">{{ e }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <button type="submit" class="submit-btn">Predict Stability</button>
-                </form>
-            </section>
-
-            <!-- ===========================
-                 RIGHT FORM – PLACEMENT TYPE COMPARISON
-            ============================ -->
-            <section class="form-box">
-                <h2>Compare Placement Profiles</h2>
-
-                <form id="comparison-form" method="POST" action="/compare">
-
-                    <div class="form-group">
-                        <label>Select Placement Profile:</label>
-                        <select name="profileName" required>
-                            <option value="">Select...</option>
-                            {% for profile in placement_profiles %}
-                                <option value="{{ profile.get_name() }}">{{ profile.get_name() }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Select Placement Types (2–4):</label>
-                        <div class="checkbox-list">
-                            {% for pt in placement_types %}
-                                <label>
-                                    <input type="checkbox" name="placementTypes" value="{{ pt }}">
-                                    {{ pt }}
-                                </label>
-                                <br>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <button type="submit" class="submit-btn">Compare Types</button>
-                </form>
-            </section>
-
-        </div>
-
-        <!-- ===========================
-             PROFILE MANAGEMENT SECTION
-        ============================ -->
-        <section class="profile-management">
-
-            <h2>Manage Placement Profiles</h2>
-
-            <h3>Existing Profiles</h3>
-            <br>
-
-            <div class="profile-grid">
-                {% if placement_profiles %}
-                    {% for profile in placement_profiles %}
-                        <div class="profile-card">
-                            {% set profile_dict = profile.to_dict() %}
-                            <h4>{{ profile_dict.name }}</h4>
-                            <p><strong>Child Age:</strong> {{ profile_dict.childAge }} yrs</p>
-                            <p><strong>Child Gender:</strong> {{ profile_dict.childGender }}</p>
-                            <p><strong>Child Ethnicity:</strong> {{ profile_dict.childEthnicity }}</p>
-                            <p><strong>Carer Age:</strong> {{ profile_dict.carerAge }} yrs</p>
-                            <p><strong>Carer Gender:</strong> {{ profile_dict.carerGender }}</p>
-                            <p><strong>Carer Ethnicity:</strong> {{ profile_dict.carerEthnicity }}</p>
-                            <p><strong>Prior Placements:</strong> {{ profile_dict.childPriorPlacementsNum }}</p>
-                            <p><strong>Returning Child:</strong> {{ profile_dict.returningChild }}</p>
-                            <p><strong>Age Left Care:</strong> {{ profile_dict.ageChildLeftCare }} yrs</p>
-                            <p><strong>Missing Episodes:</strong> {{ profile_dict.missingEpisodes }}</p>
-                            <p><strong>Number of Carers:</strong> {{ profile_dict.numberOfCarers }}</p>
-                            <p><strong>Placed With Siblings:</strong> {{ profile_dict.placedWithSiblings }}</p>
-                            <p><strong>Sibling Group Size:</strong> {{ profile_dict.siblingGroupSize }}</p>
-                            <p><strong>Age Came Into Care:</strong> {{ profile_dict.ageChildCameIntoCare }} yrs</p>
-                            <p><strong>EH Involvement:</strong> {{ profile_dict.involvementOfEH }}</p>
-                            <p><strong>Siblings in EH:</strong> {{ profile_dict.siblingsInEH }}</p>
-                            <p><strong>YOT Involvement:</strong> {{ profile_dict.involvementOfYOT }}</p>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p>No profiles added yet.</p>
-                {% endif %}
+            <div class="grid-two">
+                <div class="form-group">
+                    {{ form.child_age.label }}
+                    {{ form.child_age(class="form-control") }}
+                    {% if form.child_age.errors %}<div class="error">{{ form.child_age.errors[0] }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.child_gender.label }}
+                    {{ form.child_gender(class="form-control") }}
+                    {% if form.child_gender.errors %}<div class="error">{{ form.child_gender.errors[0] }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.child_ethnicity.label }}
+                    {{ form.child_ethnicity(class="form-control") }}
+                    {% if form.child_ethnicity.errors %}<div class="error">{{ form.child_ethnicity.errors[0] }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.carer_age.label }}
+                    {{ form.carer_age(class="form-control") }}
+                    {% if form.carer_age.errors %}<div class="error">{{ form.carer_age.errors[0] }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.carer_gender.label }}
+                    {{ form.carer_gender(class="form-control") }}
+                    {% if form.carer_gender.errors %}<div class="error">{{ form.carer_gender.errors[0] }}</div>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.carer_ethnicity.label }}
+                    {{ form.carer_ethnicity(class="form-control") }}
+                    {% if form.carer_ethnicity.errors %}<div class="error">{{ form.carer_ethnicity.errors[0] }}</div>{% endif %}
+                </div>
             </div>
 
-            <br>
-            <div class="add-profile">
-                <h3>Add New Placement Profile</h3>
-
-                <form id="add-profile-form" method="POST" action="/add_profile">
-
-                    <div class="form-group">
-                        <label>Profile Name:</label>
-                        <input type="text" name="profileName" required>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Child Age:</label>
-                            <input type="number" name="childAge" min="0" max="18" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Child Gender:</label>
-                            <select name="childGender" required>
-                                {% for g in gender_options %}
-                                    <option value="{{ g }}">{{ g }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Child Ethnicity:</label>
-                            <select name="childEthnicity" required>
-                                {% for e in ethnicity_options %}
-                                    <option value="{{ e }}">{{ e }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Carer Age:</label>
-                            <input type="number" name="carerAge" min="25" max="75" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Carer Gender:</label>
-                            <select name="carerGender" required>
-                                {% for g in gender_options %}
-                                    <option value="{{ g }}">{{ g }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Carer Ethnicity:</label>
-                            <select name="carerEthnicity" required>
-                                {% for e in ethnicity_options %}
-                                    <option value="{{ e }}">{{ e }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Age Child Came Into Care:</label>
-                            <input type="number" name="ageChildCameIntoCare" min="0" max="18" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Returning Child:</label>
-                            <select name="returningChild" required>
-                                <option value="Yes">Yes</option>
-                                <option value="No">No</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Age Child Left Care:</label>
-                            <input type="number" name="ageChildLeftCare" min="0" max="18">
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Child Prior Placements:</label>
-                            <input type="number" name="childPriorPlacementsNum" min="0" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Missing Episodes:</label>
-                            <input type="number" name="missingEpisodes" min="0" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Number of Carers:</label>
-                            <input type="number" name="numberOfCarers" min="1" required>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Placed With Siblings:</label>
-                            <select name="placedWithSiblings" required>
-                                <option value="Yes">Yes</option>
-                                <option value="No">No</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Sibling Group Size:</label>
-                            <input type="number" name="siblingGroupSize" min="1" required>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Involvement of EH:</label>
-                            <select name="involvementOfEH" required>
-                                <option value="Yes">Yes</option>
-                                <option value="No">No</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Siblings in EH:</label>
-                            <select name="siblingsInEH" required>
-                                <option value="Yes">Yes</option>
-                                <option value="No">No</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Involvement of YOT:</label>
-                            <select name="involvementOfYOT" required>
-                                <option value="Yes">Yes</option>
-                                <option value="No">No</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="submit-btn">Add Profile</button>
-                </form>
-            </div>
-
-        </section>
-
-    </div>
-
-</body>
-</html>
+            {{ form.submit(class="btn btn-primary") }}
+        </form>
+    </section>
+{% endblock %}

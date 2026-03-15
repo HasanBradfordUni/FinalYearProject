@@ -1,44 +1,34 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Placement Prediction Results</title>
-    <link rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-</head>
-<body>
+{% extends "base.html" %}
 
-<div class="container container-box">
+{% block title %}Prediction Results | BCFT Placement Stability System{% endblock %}
 
-    <h2 class="mb-4">Placement Prediction Results</h2>
+{% block content %}
+    <section class="panel">
+        <h1>Placement Prediction Results</h1>
 
-    <p class="section-title">For a child placement with the following details:</p>
+        <div class="grid-two summary-grid">
+            <div><strong>Child age:</strong> {{ child_age }} years</div>
+            <div><strong>Child gender:</strong> {{ child_gender }}</div>
+            <div><strong>Child ethnicity:</strong> {{ child_ethnicity }}</div>
+            <div><strong>Carer age:</strong> {{ carer_age }} years</div>
+            <div><strong>Carer gender:</strong> {{ carer_gender }}</div>
+            <div><strong>Carer ethnicity:</strong> {{ carer_ethnicity }}</div>
+        </div>
 
-    <ul>
-        <li><strong>Child Age at Placement:</strong> {{ child_age }} years</li>
-        <li><strong>Child Gender:</strong> {{ child_gender }}</li>
-        <li><strong>Child Ethnicity:</strong> {{ child_ethnicity }}</li>
-        <li><strong>Carer Age:</strong> {{ carer_age }} years</li>
-        <li><strong>Carer Gender:</strong> {{ carer_gender }}</li>
-        <li><strong>Carer Ethnicity:</strong> {{ carer_ethnicity }}</li>
-    </ul>
+        <h2 class="section-heading">Recommended Placement Types</h2>
+        <div class="card-grid">
+            {% for item in predictions %}
+                <article class="result-card">
+                    <h3>{{ item.type }}</h3>
+                    <p><strong>Estimated duration:</strong> {{ item.duration }} days</p>
+                    <p><strong>Stability score:</strong> {{ item.stability }}%</p>
+                </article>
+            {% endfor %}
+        </div>
 
-    <div class="result-box">
-        <p class="section-title">The following placement types are predicted to be the most stable:</p>
-
-        {% for item in predictions %}
-            <div class="prediction-item">
-                <strong>{{ item.type }}</strong>
-                <br>
-                Estimated Duration: <strong>{{ item.days }} days</strong>
-            </div>
-        {% endfor %}
-    </div>
-
-    <a href="/" class="btn btn-primary mt-4">Make Another Prediction</a>
-
-</div>
-
-</body>
-</html>
+        <div class="actions-row">
+            <a class="btn btn-primary" href="{{ url_for('app.predict') }}">Make Another Prediction</a>
+            <a class="btn" href="{{ url_for('app.compare') }}">Compare Placement Types</a>
+        </div>
+    </section>
+{% endblock %}

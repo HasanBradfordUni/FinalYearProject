@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Edit User | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+    <section class="panel narrow">
+        <h1>Edit User: {{ user.username }}</h1>
+        <form method="POST" action="{{ url_for('app.edit_user', user_id=user.id) }}" class="stack-form">
+            {{ form.hidden_tag() }}
+            <div class="form-group">{{ form.username.label }}{{ form.username(class='form-control') }}</div>
+            <div class="form-group">{{ form.email.label }}{{ form.email(class='form-control') }}</div>
+            <div class="form-group">{{ form.role.label }}{{ form.role(class='form-control') }}</div>
+            <div class="form-group checkbox-row">{{ form.is_active() }} {{ form.is_active.label }}</div>
+            {{ form.submit(class='btn btn-primary') }}
+        </form>
+    </section>
+{% endblock %}
+

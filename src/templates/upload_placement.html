@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Placement | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+	<section class="panel">
+		<h1>Upload Placement Record</h1>
+		<form method="POST" action="{{ url_for('app.upload_placement') }}" class="stack-form">
+			{{ form.hidden_tag() }}
+
+			<div class="grid-two">
+				<div class="form-group">{{ form.child_age.label }}{{ form.child_age(class='form-control') }}</div>
+				<div class="form-group">{{ form.child_gender.label }}{{ form.child_gender(class='form-control') }}</div>
+				<div class="form-group">{{ form.child_ethnicity.label }}{{ form.child_ethnicity(class='form-control') }}</div>
+				<div class="form-group">{{ form.carer_age.label }}{{ form.carer_age(class='form-control') }}</div>
+				<div class="form-group">{{ form.carer_gender.label }}{{ form.carer_gender(class='form-control') }}</div>
+				<div class="form-group">{{ form.carer_ethnicity.label }}{{ form.carer_ethnicity(class='form-control') }}</div>
+				<div class="form-group">{{ form.placement_type.label }}{{ form.placement_type(class='form-control') }}</div>
+			</div>
+
+			{{ form.submit(class='btn btn-primary') }}
+		</form>
+	</section>
+{% endblock %}
+

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk Upload | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+	<section class="panel narrow">
+		<h1>Bulk Upload Placement CSV</h1>
+		<p class="muted">Upload a CSV file with placement data columns matching the trained dataset format.</p>
+
+		<form method="POST" action="{{ url_for('app.upload_bulk') }}" enctype="multipart/form-data" class="stack-form">
+			{{ form.hidden_tag() }}
+			<div class="form-group">
+				{{ form.csv_file.label }}
+				{{ form.csv_file(class='form-control') }}
+				{% if form.csv_file.errors %}<div class="error">{{ form.csv_file.errors[0] }}</div>{% endif %}
+			</div>
+			{{ form.submit(class='btn btn-primary') }}
+		</form>
+	</section>
+{% endblock %}
+

@@ -133,7 +133,12 @@ class User(UserMixin):
         self.username = username
         self.email = email
         self.role = role
-        self.is_active = is_active
+        # Keep DB active flag in a private field to avoid assigning to UserMixin property.
+        self._is_active = bool(is_active)
+
+    @property
+    def is_active(self):
+        return self._is_active
 
 def create_user(connection, username, email, password, role='staff'):
     """Create a new user"""

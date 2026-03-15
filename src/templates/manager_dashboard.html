@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Manager Dashboard | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+	<section class="panel">
+		<h1>Manager Dashboard</h1>
+		<p class="muted">Review breakdown patterns and monitor placement stability trends.</p>
+
+		<div class="actions-row">
+			<a class="btn btn-primary" href="{{ url_for('app.breakdown_analysis') }}">Breakdown Analysis</a>
+			<a class="btn" href="{{ url_for('app.stability_trends') }}">Stability Trends</a>
+		</div>
+
+		<div class="stat-grid">
+			<article class="stat-card">
+				<h2>Total Placements</h2>
+				<p>{{ stats.total_placements if stats else 0 }}</p>
+			</article>
+			<article class="stat-card">
+				<h2>Total Breakdowns</h2>
+				<p>{{ stats.total_breakdowns if stats and stats.total_breakdowns is not none else 0 }}</p>
+			</article>
+			<article class="stat-card">
+				<h2>Average Duration</h2>
+				<p>{{ '%.1f days'|format(stats.avg_duration) if stats and stats.avg_duration else 'N/A' }}</p>
+			</article>
+			<article class="stat-card">
+				<h2>Placement Types</h2>
+				<p>{{ stats.placement_types if stats else 0 }}</p>
+			</article>
+		</div>
+	</section>
+
+	<section class="panel">
+		<h2 class="section-heading">Breakdown Patterns</h2>
+		<div class="table-wrap">
+			<table>
+				<thead>
+					<tr>
+						<th>Placement Type</th>
+						<th>Total</th>
+						<th>Breakdowns</th>
+						<th>Breakdown Rate</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in breakdown_patterns %}
+						<tr>
+							<td>{{ row.placement_type }}</td>
+							<td>{{ row.total }}</td>
+							<td>{{ row.breakdowns }}</td>
+							<td>{{ '%.1f%%'|format(row.breakdown_rate or 0) }}</td>
+						</tr>
+					{% else %}
+						<tr><td colspan="4">No data available.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</section>
+
+	<section class="panel">
+		<h2 class="section-heading">Recent Stability Trends</h2>
+		<div class="table-wrap">
+			<table>
+				<thead>
+					<tr>
+						<th>Date</th>
+						<th>Placements</th>
+						<th>Breakdowns</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in stability_trends %}
+						<tr>
+							<td>{{ row.date }}</td>
+							<td>{{ row.placements }}</td>
+							<td>{{ row.breakdowns }}</td>
+						</tr>
+					{% else %}
+						<tr><td colspan="3">No trend data available.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</section>
+{% endblock %}
+

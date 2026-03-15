@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        <h1>Audit Logs</h1>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                        <tr>
+                            <td>{{ log.timestamp }}</td>
+                            <td>{{ log.username or 'System' }}</td>
+                            <td>{{ log.action }}</td>
+                            <td>{{ log.details }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="4">No audit logs found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="actions-row">
+            {% set current_page = request.args.get('page', 1, type=int) %}
+            {% if current_page > 1 %}
+                <a class="btn" href="{{ url_for('app.audit_logs', page=current_page - 1) }}">Previous</a>
+            {% endif %}
+            <a class="btn" href="{{ url_for('app.audit_logs', page=current_page + 1) }}">Next</a>
+        </div>
+    </section>
+{% endblock %}
+

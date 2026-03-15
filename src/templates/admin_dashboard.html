@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        <h1>Admin Dashboard</h1>
+        <p class="muted">Manage users, monitor system usage, and review audit activity.</p>
+
+        <div class="stat-grid">
+            <article class="stat-card">
+                <h2>Total Users</h2>
+                <p>{{ system_stats.total_users if system_stats else 0 }}</p>
+            </article>
+            <article class="stat-card">
+                <h2>Total Placements</h2>
+                <p>{{ system_stats.total_placements if system_stats else 0 }}</p>
+            </article>
+            <article class="stat-card">
+                <h2>Total Predictions</h2>
+                <p>{{ system_stats.total_predictions if system_stats else 0 }}</p>
+            </article>
+            <article class="stat-card">
+                <h2>Total Comparisons</h2>
+                <p>{{ system_stats.total_comparisons if system_stats else 0 }}</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading-row">
+            <h2 class="section-heading">User Accounts</h2>
+            <a class="btn btn-primary" href="{{ url_for('app.manage_users') }}">Manage Users</a>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users[:8] %}
+                        <tr>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.role|capitalize }}</td>
+                            <td>{{ 'Active' if user.is_active else 'Inactive' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="4">No users found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading-row">
+            <h2 class="section-heading">Recent Audit Logs</h2>
+            <a class="btn" href="{{ url_for('app.audit_logs') }}">View Full Log</a>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in audit_logs %}
+                        <tr>
+                            <td>{{ log.timestamp }}</td>
+                            <td>{{ log.username or 'System' }}</td>
+                            <td>{{ log.action }}</td>
+                            <td>{{ log.details }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="4">No audit logs available.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}

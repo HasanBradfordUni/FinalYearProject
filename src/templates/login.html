@@ -1,63 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Placement Prediction System</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <div class="login-box">
-            <h1>Placement Prediction System</h1>
-            <h2>Login</h2>
+{% extends "base.html" %}
 
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+{% block title %}Login | BCFT Placement Stability System{% endblock %}
 
-            <form method="POST" action="{{ url_for('app.login') }}">
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/loginStyles.css') }}">
+{% endblock %}
+
+{% block content %}
+    <section class="auth-wrap">
+        <div class="auth-card">
+            <h1>Welcome Back</h1>
+            <p class="auth-subtitle">Sign in to access BCFT dashboards and placement tools.</p>
+
+            <form method="POST" action="{{ url_for('app.login') }}" class="stack-form">
                 {{ form.hidden_tag() }}
 
                 <div class="form-group">
                     {{ form.username.label }}
-                    {{ form.username(class="form-control") }}
-                    {% if form.username.errors %}
-                        <div class="error">
-                            {% for error in form.username.errors %}
-                                <span>{{ error }}</span>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
+                    {{ form.username(class="form-control", autocomplete="username") }}
+                    {% if form.username.errors %}<div class="error">{{ form.username.errors[0] }}</div>{% endif %}
                 </div>
 
                 <div class="form-group">
                     {{ form.password.label }}
-                    {{ form.password(class="form-control") }}
-                    {% if form.password.errors %}
-                        <div class="error">
-                            {% for error in form.password.errors %}
-                                <span>{{ error }}</span>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
+                    {{ form.password(class="form-control", autocomplete="current-password") }}
+                    {% if form.password.errors %}<div class="error">{{ form.password.errors[0] }}</div>{% endif %}
                 </div>
 
-                <div class="form-group checkbox">
-                    {{ form.remember_me() }} {{ form.remember_me.label }}
+                <div class="form-group checkbox-row">
+                    {{ form.remember_me() }}
+                    {{ form.remember_me.label }}
                 </div>
 
-                <div class="form-group">
-                    {{ form.submit(class="btn btn-primary btn-block") }}
-                </div>
+                {{ form.submit(class="btn btn-primary btn-block") }}
             </form>
         </div>
-    </div>
-</body>
-</html>
+    </section>
+{% endblock %}

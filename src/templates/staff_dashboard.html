@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Dashboard | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        <h1>Staff Dashboard</h1>
+        <p class="muted">Upload placement records, generate predictions, and compare placement options.</p>
+
+        <div class="actions-row">
+            <a class="btn btn-primary" href="{{ url_for('app.upload_placement') }}">Upload Placement</a>
+            <a class="btn" href="{{ url_for('app.upload_bulk') }}">Bulk Upload CSV</a>
+            <a class="btn" href="{{ url_for('app.predict') }}">Generate Prediction</a>
+            <a class="btn" href="{{ url_for('app.compare') }}">Compare Options</a>
+        </div>
+
+        <div class="stat-grid">
+            <article class="stat-card">
+                <h2>Total Placements</h2>
+                <p>{{ stats.total_placements if stats else 0 }}</p>
+            </article>
+            <article class="stat-card">
+                <h2>Total Breakdowns</h2>
+                <p>{{ stats.total_breakdowns if stats and stats.total_breakdowns is not none else 0 }}</p>
+            </article>
+            <article class="stat-card">
+                <h2>Average Duration</h2>
+                <p>{{ '%.1f days'|format(stats.avg_duration) if stats and stats.avg_duration else 'N/A' }}</p>
+            </article>
+            <article class="stat-card">
+                <h2>Placement Types</h2>
+                <p>{{ stats.placement_types if stats else 0 }}</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2 class="section-heading">Recent Placements</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Placement Type</th>
+                        <th>Child Age</th>
+                        <th>Carer Age</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in recent_placements %}
+                        <tr>
+                            <td>{{ row.id }}</td>
+                            <td>{{ row.placement_type }}</td>
+                            <td>{{ row.child_age }}</td>
+                            <td>{{ row.carer_age }}</td>
+                            <td>{{ row.created_at }}</td>
+                            <td><a href="{{ url_for('app.view_placement', placement_id=row.id) }}">View</a></td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6">No placement records yet.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}
+

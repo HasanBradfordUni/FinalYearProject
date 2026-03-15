@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Compare Placements | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        <h1>Compare Placement Options</h1>
+        <p class="muted">Select profile data and 2 to 4 placement types to compare stability outcomes.</p>
+
+        <form method="POST" action="{{ url_for('app.compare') }}" class="stack-form">
+            {{ form.hidden_tag() }}
+
+            <div class="grid-two">
+                <div class="form-group">{{ form.child_age.label }}{{ form.child_age(class='form-control') }}</div>
+                <div class="form-group">{{ form.child_gender.label }}{{ form.child_gender(class='form-control') }}</div>
+                <div class="form-group">{{ form.child_ethnicity.label }}{{ form.child_ethnicity(class='form-control') }}</div>
+                <div class="form-group">{{ form.carer_age.label }}{{ form.carer_age(class='form-control') }}</div>
+                <div class="form-group">{{ form.carer_gender.label }}{{ form.carer_gender(class='form-control') }}</div>
+                <div class="form-group">{{ form.carer_ethnicity.label }}{{ form.carer_ethnicity(class='form-control') }}</div>
+            </div>
+
+            <div class="form-group">
+                {{ form.placement_types.label }}
+                {{ form.placement_types(class='form-control select-multi', size=8) }}
+                {% if form.placement_types.errors %}<div class="error">{{ form.placement_types.errors[0] }}</div>{% endif %}
+                <p class="muted">Hold Ctrl (or Cmd on Mac) to select multiple options.</p>
+            </div>
+
+            {{ form.submit(class='btn btn-primary') }}
+        </form>
+    </section>
+{% endblock %}
+

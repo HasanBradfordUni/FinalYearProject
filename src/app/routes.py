@@ -336,7 +336,19 @@ def system_settings():
 @role_required('admin')
 def update_settings():
     """Update system settings"""
-    update_system_settings(connection, request.form)
+    settings_payload = {}
+
+    for key, value in request.form.items():
+        if key in {'csrf_token', 'new_setting_key', 'new_setting_value'}:
+            continue
+        settings_payload[key] = value
+
+    new_key = request.form.get('new_setting_key', '').strip()
+    new_value = request.form.get('new_setting_value', '').strip()
+    if new_key:
+        settings_payload[new_key] = new_value
+
+    update_system_settings(connection, settings_payload)
     log_audit(connection, current_user.id, 'settings_updated', None)
 
     flash('Settings updated successfully!', 'success')

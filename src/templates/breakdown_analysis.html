@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Breakdown Analysis | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        <h1>Breakdown Analysis</h1>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Placement Type</th><th>Total</th><th>Breakdowns</th><th>Rate</th></tr></thead>
+                <tbody>
+                    {% for row in breakdown_data %}
+                        <tr><td>{{ row.placement_type }}</td><td>{{ row.total }}</td><td>{{ row.breakdowns }}</td><td>{{ '%.1f%%'|format(row.breakdown_rate or 0) }}</td></tr>
+                    {% else %}
+                        <tr><td colspan="4">No breakdown data available.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2 class="section-heading">Top Risk Factors</h2>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Child Ethnicity</th><th>Carer Ethnicity</th><th>Placement Type</th><th>Avg Child Age</th><th>Cases</th></tr></thead>
+                <tbody>
+                    {% for row in risk_factors %}
+                        <tr><td>{{ row.child_ethnicity }}</td><td>{{ row.carer_ethnicity }}</td><td>{{ row.placement_type }}</td><td>{{ '%.1f'|format(row.avg_child_age or 0) }}</td><td>{{ row.count }}</td></tr>
+                    {% else %}
+                        <tr><td colspan="5">No risk factor data available.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2 class="section-heading">Recommendations</h2>
+        <div class="card-grid">
+            {% for rec in recommendations %}
+                <article class="result-card severity-{{ rec.severity }}">
+                    <h3>{{ rec.placement_type }}</h3>
+                    <p>{{ rec.message }}</p>
+                </article>
+            {% else %}
+                <p class="muted">No recommendations generated yet.</p>
+            {% endfor %}
+        </div>
+    </section>
+{% endblock %}
+

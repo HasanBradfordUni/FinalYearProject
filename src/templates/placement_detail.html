@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Placement Detail | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+	<section class="panel">
+		<h1>Placement Record #{{ placement.id }}</h1>
+		<div class="grid-two summary-grid">
+			<div><strong>Child age:</strong> {{ placement.child_age }}</div>
+			<div><strong>Child gender:</strong> {{ placement.child_gender }}</div>
+			<div><strong>Child ethnicity:</strong> {{ placement.child_ethnicity }}</div>
+			<div><strong>Carer age:</strong> {{ placement.carer_age }}</div>
+			<div><strong>Carer gender:</strong> {{ placement.carer_gender }}</div>
+			<div><strong>Carer ethnicity:</strong> {{ placement.carer_ethnicity }}</div>
+			<div><strong>Placement type:</strong> {{ placement.placement_type }}</div>
+			<div><strong>Duration:</strong> {{ placement.placement_duration or 'N/A' }}</div>
+			<div><strong>Breakdown occurred:</strong> {{ 'Yes' if placement.breakdown_occurred else 'No' }}</div>
+			<div><strong>Uploaded by:</strong> {{ placement.uploaded_by }}</div>
+			<div><strong>Created at:</strong> {{ placement.created_at }}</div>
+		</div>
+		<div class="actions-row">
+			<a class="btn" href="{{ url_for('app.staff_dashboard') }}">Back to Dashboard</a>
+		</div>
+	</section>
+{% endblock %}
+

@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from app.models import create_connection, create_tables, create_user
 
 # Database path
-db_path = os.path.join(os.path.dirname(__file__), 'static', 'placements.db')
+db_path = os.path.join(os.path.dirname(__file__), 'app/static', 'placements.db')
 
 # Ensure the directory exists
 os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -30,8 +30,8 @@ print("\nCreating admin user...")
 try:
     admin_id = create_user(
         connection=connection,
-        username='admin',
-        email='admin@bcft.local',
+        username='AkhtarHa3',
+        email='hasan.akhtar@bradfordcft.org.uk',
         password='Admin123!',  # Change this after first login!
         role='admin'
     )
@@ -40,12 +40,12 @@ try:
     print("✓ Admin user created successfully!")
     print("="*50)
     print(f"User ID: {admin_id}")
-    print(f"Username: admin")
-    print(f"Password: Admin123!")
-    print(f"Role: admin")
+    print("Username: AkhtarHa3")
+    print("Email: hasan.akhtar@bradfordcft.org.uk")
+    print("Password: Admin123!")
+    print("Role: admin")
     print("="*50)
     print("\n⚠️  IMPORTANT: Change the password after first login!")
-    print("\nYou can now run the application with: python run.py")
 
 except Exception as e:
     print(f"\n✗ Error creating admin user: {e}")

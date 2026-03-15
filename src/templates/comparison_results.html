@@ -1,52 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Placement Comparison Results</title>
-    <link rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-</head>
-<body>
+{% extends "base.html" %}
 
-<div class="container container-box">
+{% block title %}Comparison Results | BCFT Placement Stability System{% endblock %}
 
-    <h2 class="mb-4">Placement Type Comparison</h2>
+{% block content %}
+    <section class="panel">
+        <h1>Placement Type Comparison</h1>
 
-    <p class="section-title">
-        Comparison results for placement profile:
-        <strong>{{ profile_name }}</strong>
-        with the following details:
-    </p>
+        <div class="grid-two summary-grid">
+            <div><strong>Child age:</strong> {{ profile.child_age }} years</div>
+            <div><strong>Child gender:</strong> {{ profile.child_gender }}</div>
+            <div><strong>Child ethnicity:</strong> {{ profile.child_ethnicity }}</div>
+            <div><strong>Carer age:</strong> {{ profile.carer_age }} years</div>
+            <div><strong>Carer gender:</strong> {{ profile.carer_gender }}</div>
+            <div><strong>Carer ethnicity:</strong> {{ profile.carer_ethnicity }}</div>
+        </div>
 
-    <ul>
-        <li><strong>Child Age at Placement:</strong> {{ profile.childAge }} years</li>
-        <li><strong>Child Gender:</strong> {{ profile.childGender }}</li>
-        <li><strong>Child Ethnicity:</strong> {{ profile.childEthnicity }}</li>
-        <li><strong>Carer Age:</strong> {{ profile.carerAge }} years</li>
-        <li><strong>Carer Gender:</strong> {{ profile.carerGender }}</li>
-        <li><strong>Carer Ethnicity:</strong> {{ profile.carerEthnicity }}</li>
-    </ul>
-
-    <div class="result-box">
-        <p class="section-title">Predicted stability for selected placement types:</p>
-
+        <h2 class="section-heading">Selected Placement Options</h2>
         {% if predictions %}
-            {% for item in predictions %}
-                <div class="prediction-item">
-                    <strong>{{ item.type }}</strong>
-                    <br>
-                    Estimated Duration: <strong>{{ item.days }} days</strong>
-                </div>
-            {% endfor %}
+            <div class="card-grid">
+                {% for item in predictions %}
+                    <article class="result-card">
+                        <h3>{{ item.type }}</h3>
+                        <p><strong>Estimated duration:</strong> {{ item.duration }} days</p>
+                        <p><strong>Stability score:</strong> {{ item.stability }}%</p>
+                    </article>
+                {% endfor %}
+            </div>
         {% else %}
-            <p>No predictions available for the selected placement types.</p>
+            <p class="muted">No predictions available for the selected placement types.</p>
         {% endif %}
-    </div>
 
-    <a href="/" class="btn btn-primary mt-4">Back to Dashboard</a>
-
-</div>
-
-</body>
-</html>
+        <div class="actions-row">
+            <a class="btn btn-primary" href="{{ url_for('app.compare') }}">Run Another Comparison</a>
+            <a class="btn" href="{{ url_for('app.dashboard') }}">Back to Dashboard</a>
+        </div>
+    </section>
+{% endblock %}

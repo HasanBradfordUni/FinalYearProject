@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings | BCFT Placement Stability System{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        <h1>System Settings</h1>
+        <form method="POST" action="{{ url_for('app.update_settings') }}" class="stack-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            {% for setting in settings %}
+                <div class="form-group">
+                    <label for="setting_{{ loop.index }}">{{ setting.setting_key }}</label>
+                    <input id="setting_{{ loop.index }}" class="form-control" type="text" name="{{ setting.setting_key }}" value="{{ setting.setting_value }}">
+                </div>
+            {% else %}
+                <p class="muted">No system settings found yet. Add one below.</p>
+            {% endfor %}
+
+            <h2 class="section-heading">Add New Setting</h2>
+            <div class="grid-two">
+                <div class="form-group">
+                    <label for="new_setting_key">Setting Key</label>
+                    <input id="new_setting_key" class="form-control" type="text" name="new_setting_key" placeholder="example_key">
+                </div>
+                <div class="form-group">
+                    <label for="new_setting_value">Setting Value</label>
+                    <input id="new_setting_value" class="form-control" type="text" name="new_setting_value" placeholder="value">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+        </form>
+    </section>
+{% endblock %}
+
