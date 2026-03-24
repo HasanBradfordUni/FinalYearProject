@@ -1,0 +1,47 @@
+{
+  "regression_features": [
+    "Child Age At Placement",
+    "Child Gender",
+    "Child Ethnicity",
+    "Child Prior Placements",
+    "Returning Child",
+    "Missing Episodes",
+    "Sibling Group Size",
+    "Placed With Siblings",
+    "Carer Age",
+    "Carer Gender",
+    "Carer Ethnicity",
+    "EH involvement",
+    "YOT involvement",
+    "Placement Sequence Number",
+    "Placement Type"
+  ],
+  "classification_features": [
+    "Child Age At Placement",
+    "Child Gender",
+    "Child Ethnicity",
+    "Child Prior Placements",
+    "Returning Child",
+    "Missing Episodes",
+    "Sibling Group Size",
+    "Placed With Siblings",
+    "Carer Age",
+    "Carer Gender",
+    "Carer Ethnicity",
+    "EH involvement",
+    "YOT involvement",
+    "Placement Sequence Number"
+  ],
+  "categorical_columns": [
+    "Child Gender",
+    "Child Ethnicity",
+    "Carer Gender",
+    "Carer Ethnicity"
+  ],
+  "placement_classes": [
+    "External Fostering",
+    "In-House Fostering",
+    "Kinship",
+    "Residential"
+  ]
+}

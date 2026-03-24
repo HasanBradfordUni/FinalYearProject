@@ -28,7 +28,14 @@ if connection:
 
 # Load AI models for placement predictions
 try:
-    models_path = os.path.join(os.path.dirname(__file__), '..', '..', 'Prototype', 'models')
+    model_search_paths = [
+        os.path.join(os.path.dirname(__file__), 'static', 'models'),
+        os.path.join(os.path.dirname(__file__), '..', '..', 'Prototype', 'models'),
+    ]
+    models_path = next((p for p in model_search_paths if os.path.exists(os.path.join(p, "lr_regressor.pkl"))), None)
+    if not models_path:
+        raise FileNotFoundError("No trained model artifacts found.")
+
     lr_model = joblib.load(os.path.join(models_path, "lr_regressor.pkl"))
     rf_model = joblib.load(os.path.join(models_path, "rf_classifier.pkl"))
     feature_encoders = joblib.load(os.path.join(models_path, "feature_encoders.pkl"))
@@ -207,9 +214,16 @@ def predict():
                              child_age=form.child_age.data,
                              child_gender=form.child_gender.data,
                              child_ethnicity=form.child_ethnicity.data,
+                             child_prior_placements=form.child_prior_placements.data,
+                             returning_child=form.returning_child.data,
+                             missing_episodes=form.missing_episodes.data,
+                             sibling_group_size=form.sibling_group_size.data,
+                             placed_with_siblings=form.placed_with_siblings.data,
                              carer_age=form.carer_age.data,
                              carer_gender=form.carer_gender.data,
                              carer_ethnicity=form.carer_ethnicity.data,
+                             eh_involvement=form.eh_involvement.data,
+                             yot_involvement=form.yot_involvement.data,
                              predictions=predictions)
 
     return render_template('index.html', form=form)
@@ -221,6 +235,10 @@ def compare():
     form = ComparisonForm()
     if form.validate_on_submit():
         selected_types = form.placement_types.data
+        if len(selected_types) < 2 or len(selected_types) > 3:
+            flash('Please select between 2 and 3 placement types.', 'warning')
+            return render_template('compare.html', form=form)
+
         profile_data = extract_profile_from_form(form)
 
         # Generate predictions for each selected placement type

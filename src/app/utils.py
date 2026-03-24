@@ -1,7 +1,26 @@
 import pandas as pd
-import numpy as np
 import csv
 from io import StringIO
+
+REGRESSION_FEATURE_COLUMNS = [
+    "Child Age At Placement",
+    "Child Gender",
+    "Child Ethnicity",
+    "Child Prior Placements",
+    "Returning Child",
+    "Missing Episodes",
+    "Sibling Group Size",
+    "Placed With Siblings",
+    "Carer Age",
+    "Carer Gender",
+    "Carer Ethnicity",
+    "EH involvement",
+    "YOT involvement",
+    "Placement Sequence Number",
+    "Placement Type",
+]
+
+CATEGORICAL_FEATURES = {"Child Gender", "Child Ethnicity", "Carer Gender", "Carer Ethnicity"}
 
 # ============== Prediction Utility Functions ==============
 
@@ -16,27 +35,50 @@ def prepare_prediction_input(form, feature_encoders):
             val = val.data
         return val if val not in [None, "", "None"] else default
 
+    def parse_bool(value, default=False):
+        if value is None:
+            return int(default)
+        if isinstance(value, bool):
+            return int(value)
+        return int(str(value).strip().lower() in {"true", "1", "yes", "y"})
+
+    def encode_value(encoder, raw_value):
+        text_value = str(raw_value)
+        classes = set(encoder.classes_.astype(str))
+        if text_value in classes:
+            return int(encoder.transform([text_value])[0])
+        fallback = "Unknown" if "Unknown" in classes else str(encoder.classes_[0])
+        return int(encoder.transform([fallback])[0])
+
+    child_prior_placements = int(get_value("child_prior_placements", 0))
+
     # Setup a dataframe with entered/default values
-    df = pd.DataFrame([{
-        "Child Age At Placement": float(get_value("child_age", 10)),
-        "Child Gender": get_value("child_gender", "Unknown"),
-        "Child Ethnicity": get_value("child_ethnicity", "Unknown"),
-        "Carer Age": float(get_value("carer_age", 45)),
-        "Carer Gender Composition": get_value("carer_gender", "Unknown"),
-        "Carer Ethnicity Or Religion": get_value("carer_ethnicity", "Unknown"),
-        "Placement Type": None  # placeholder
-    }])
+    df = pd.DataFrame([
+        {
+            "Child Age At Placement": int(get_value("child_age", 10)),
+            "Child Gender": get_value("child_gender", "Unknown"),
+            "Child Ethnicity": get_value("child_ethnicity", "Unknown"),
+            "Child Prior Placements": child_prior_placements,
+            "Returning Child": parse_bool(get_value("returning_child", "False")),
+            "Missing Episodes": int(get_value("missing_episodes", 0)),
+            "Sibling Group Size": int(get_value("sibling_group_size", 0)),
+            "Placed With Siblings": parse_bool(get_value("placed_with_siblings", "False")),
+            "Carer Age": int(get_value("carer_age", 45)),
+            "Carer Gender": get_value("carer_gender", "Unknown"),
+            "Carer Ethnicity": get_value("carer_ethnicity", "Unknown"),
+            "EH involvement": parse_bool(get_value("eh_involvement", "False")),
+            "YOT involvement": parse_bool(get_value("yot_involvement", "False")),
+            "Placement Sequence Number": child_prior_placements + 1,
+            "Placement Type": 0,
+        }
+    ])
 
-    # Apply encoders to all columns EXCEPT Placement Type
+    # Apply encoders to known categorical columns only.
     for col, encoder in feature_encoders.items():
-        if col != "Placement Type":
-            df[col] = df[col].astype(str)
-            df[col] = encoder.transform(df[col])
+        if col in CATEGORICAL_FEATURES and col in df.columns:
+            df[col] = df[col].apply(lambda value: encode_value(encoder, value))
 
-    # Set Placement Type to 0 (will be replaced during prediction)
-    df["Placement Type"] = 0
-
-    return df.values
+    return df[REGRESSION_FEATURE_COLUMNS].values
 
 def generate_predictions_list(input_data, rf_model, lr_model, placement_encoder):
     """
@@ -69,10 +111,9 @@ def generate_predictions_list(input_data, rf_model, lr_model, placement_encoder)
         # Get probability distribution
         try:
             proba = rf_model.predict_proba(input_without_placement)[0]
-            # Get probability for this specific placement type
-            placement_type_index = list(placement_encoder.classes_).index(placement_type)
-            if placement_type_index < len(proba):
-                stability_score = proba[placement_type_index] * 100
+            rf_classes = list(getattr(rf_model, "classes_", []))
+            if encoded_placement in rf_classes:
+                stability_score = proba[rf_classes.index(encoded_placement)] * 100
             else:
                 stability_score = 50.0
         except:
@@ -95,9 +136,16 @@ def extract_profile_from_form(form):
         "child_age": form.child_age.data,
         "child_gender": form.child_gender.data,
         "child_ethnicity": form.child_ethnicity.data,
+        "child_prior_placements": form.child_prior_placements.data,
+        "returning_child": form.returning_child.data,
+        "missing_episodes": form.missing_episodes.data,
+        "sibling_group_size": form.sibling_group_size.data,
+        "placed_with_siblings": form.placed_with_siblings.data,
         "carer_age": form.carer_age.data,
         "carer_gender": form.carer_gender.data,
-        "carer_ethnicity": form.carer_ethnicity.data
+        "carer_ethnicity": form.carer_ethnicity.data,
+        "eh_involvement": form.eh_involvement.data,
+        "yot_involvement": form.yot_involvement.data,
     }
 
 def compare_placement_options(profile_data, selected_types, rf_model, lr_model, feature_encoders, placement_encoder):
@@ -148,8 +196,8 @@ def process_bulk_upload(connection, csv_file, user_id):
                     'child_gender': row.get('Child Gender', 'Unknown'),
                     'child_ethnicity': row.get('Child Ethnicity', 'Unknown'),
                     'carer_age': float(row.get('Carer Age', 0)),
-                    'carer_gender': row.get('Carer Gender Composition', 'Unknown'),
-                    'carer_ethnicity': row.get('Carer Ethnicity Or Religion', 'Unknown'),
+                    'carer_gender': row.get('Carer Gender', row.get('Carer Gender Composition', 'Unknown')),
+                    'carer_ethnicity': row.get('Carer Ethnicity', row.get('Carer Ethnicity Or Religion', 'Unknown')),
                     'placement_type': row.get('Placement Type', 'Unknown'),
                     'uploaded_by': user_id
                 }

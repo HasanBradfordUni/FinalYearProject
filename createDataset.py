@@ -3,285 +3,177 @@ from datetime import datetime, timedelta
 
 class DatasetBuilder:
     def __init__(self):
-        self.__filePath = "dataset.csv"
-        genders = ["Non binary", "Male", "Trans Female", "Female", "Trans Male"]
-        ethnicities = ["Asian/British Asian - Chinese", "Asian/British Asian - Other",
-                       "Black/Black British - Other", "Gypsy / Roma", "Black/Black British - African",
-                       "White - British", "White - Irish", "Asian/British Asian - Indian",
-                       "White - Other", "Black/Black British - Caribbean",
-                       "Asian/British Asian - Pakistani", "Asian/British Asian - Bangladeshi",
-                       "Mixed - White/Black African", "Traveller of Irish Heritage",
-                       "Mixed - White/Asian", "Mixed - Other", "Traveller - Other",
-                       "White - Central European", "Mixed - White/Black Caribbean",
-                       "Dual Heritage - Black/White", "White - Eastern European"]
+        self.__filePath = "src/app/static/dataset.csv"
 
-        placement_types = [
-            "Fostering - Long Term",
-            "Fostering - Short Term",
+        # ORIGINAL gender list (kept)
+        self.genders = ["Non binary", "Male", "Trans Female", "Female", "Trans Male"]
+        self.gender_weights = [0.05, 0.36, 0.10, 0.40, 0.09]
+
+        # ORIGINAL ethnicity list (kept)
+        self.ethnicities = [
+            "Asian/British Asian - Chinese", "Asian/British Asian - Other",
+            "Black/Black British - Other", "Gypsy / Roma", "Black/Black British - African",
+            "White - British", "White - Irish", "Asian/British Asian - Indian",
+            "White - Other", "Black/Black British - Caribbean",
+            "Asian/British Asian - Pakistani", "Asian/British Asian - Bangladeshi",
+            "Mixed - White/Black African", "Traveller of Irish Heritage",
+            "Mixed - White/Asian", "Mixed - Other", "Traveller - Other",
+            "White - Central European", "Mixed - White/Black Caribbean",
+            "Dual Heritage - Black/White", "White - Eastern European"
+        ]
+
+        # ORIGINAL ethnicity weights (kept)
+        self.ethnicity_weights = [
+            0.002, 0.015, 0.002, 0.005, 0.013, 0.567, 0.004, 0.026,
+            0.036, 0.005, 0.255, 0.023, 0.002, 0.002, 0.012, 0.005,
+            0.005, 0.036, 0.008, 0.015, 0.036
+        ]
+
+        # BCFT-refined placement types
+        self.placement_types = [
             "Kinship",
-            "Residential",
-            "Special Guardianship",
-            "Fostering - Emergency",
-            "Fostering - Respite",
-            "Adoption"
+            "External Fostering",
+            "In-House Fostering",
+            "Residential"
         ]
 
-        # PLACEMENT TYPE WEIGHTINGS BASED ON REAL DATA
-        placement_weights = [
-            0.045,   # Fostering - Long Term
-            0.204,   # Fostering - Short Term
-            0.576,   # Kinship
-            0.070,   # Residential
-            0.050,   # Special Guardianship
-            0.013,   # Fostering - Emergency
-            0.002,   # Fostering - Respite
-            0.039    # Adoption
+        self.placement_weights = [
+            0.2122,   # Kinship
+            0.3364,   # External Fostering
+            0.4514,   # In-House Fostering
+            0.1015    # Residential
         ]
 
-        self.__fields = {
-            "Child Age At Placement": list(range(0, 18)),
-            "Child Gender": genders,
-            "Child Ethnicity": ethnicities,
-            "Child Prior Placements Number": [0],
-            "Returning Child": [True, False],
-            "Age Child Left Care": list(range(1, 19)),
-            "Carer Age": [0, 0],
-            "Placement Type": placement_types,
-            "Missing Episodes": list(range(0, 8)),
-            "Placement Sequence Number": [0],
-            "Placement Start Date": datetime.now(),
-            "Placement End Reason": [
-                "Allegation (S47)",
-                "Approval removed",
-                "Carer requests placement end due to child's behaviour",
-                "Child requests placement end",
-                "Planned move to long-term fostering"
-            ],
-            "Placement Time Period (days)": [0],
-            "Number Of Carers": [0],
-            "Carer Gender Composition": [genders, genders],
-            "Placed With Siblings": [True, False],
-            "Emergency Placement": [True, False],
-            "Distance From Home (miles)": [0.0],
-            "Placement Planning Meeting": [True, False],
-            "Reason For Leaving Care": "Why the child left care entirely",
-            "Sibling Group Size": list(range(0, 9)),
-            "Previous Care History": "Any additional context and comments about the child’s care history",
-            "Age Child Came Into Care": [0],
-            "Residential Home Type": "including Mainstream",
-            "Carer Ethnicity Or Religion": [ethnicities, ethnicities],
-            "Carer Type": [
-                "Long Term Foster", "Short Term Foster", "Kinship", "Residential",
-                "Special Guardianship", "Emergency Foster", "Respite Foster", "Adoption"
-            ],
-            "EH involvement": [True, False],
-            "Siblings In EH": [True, False],
-            "YOT involvement": [True, False]
-        }
+        # BCFT placement-days distribution
+        self.length_buckets = [
+            (1, 100),
+            (101, 300),
+            (301, 500),
+            (501, 900),
+            (901, 1500),
+            (1501, 3000),
+            (3001, 4000)
+        ]
+        self.length_weights = [0.439, 0.227, 0.173, 0.145, 0.064, 0.043, 0.012]
 
-        self.__weighting = ([
-            "Eq", [0.05, 0.36, 0.1, 0.4, 0.09],
-            [0.002, 0.015, 0.002, 0.005, 0.013, 0.567, 0.004, 0.026,
-             0.036, 0.005, 0.255, 0.023, 0.002, 0.002, 0.012, 0.005,
-             0.005, 0.036, 0.008, 0.015, 0.005, 0.036],
-            [0.55, 0.30, 0.10, 0.03, 0.02], [0.6, 0.4], "Eq", "Min 25, Max 75",
-            placement_weights, [0, 0.5, 0.25, 0.12, 0.06, 0.03, 0.02, 0.01, 0.01],
-            "Min 1, Max 1000", "Max 5", [[0.05, 0.36, 0.1, 0.4, 0.09], "Max 5"], "Eq", "Eq",
-            "Eq", "Eq", "Eq", [0.6, 0, 0.2, 0.1, 0.05, 0.03, 0.01, 0.01], "Eq", "Max 17", "Eq",
-            [[0.002, 0.015, 0.002, 0.005, 0.013, 0.567, 0.004, 0.026,
-              0.036, 0.005, 0.255, 0.023, 0.002, 0.002, 0.012, 0.005,
-              0.005, 0.036, 0.008, 0.015, 0.005, 0.036], "Max 5"],
-            "Eq", [0.3, 0.7], [0.25, 0.75], [0.1, 0.9]
-        ])
+        # Move reasons (simplified + realistic)
+        self.move_reasons = [
+            "Planned move",
+            "Carer requests end",
+            "Child requests end",
+            "Behaviour concerns",
+            "Allegation",
+            "Placement stability concerns"
+        ]
 
-    def _resolve_weight_list(self, weighting):
-        if isinstance(weighting, list):
-            for item in weighting:
-                if isinstance(item, list) and all(isinstance(x, (int, float)) for x in item):
-                    return item
-            if all(isinstance(x, (int, float)) for x in weighting):
-                return weighting
-        return None
+    def _weighted_choice(self, options, weights):
+        return random.choices(options, weights=weights, k=1)[0]
 
-    def _column_values(self, options, weighting, n):
-        if not isinstance(options, list):
-            return [options] * n
-
-        if isinstance(weighting, str) and "Min" in weighting and "Max" in weighting:
-            parts = weighting.replace("Min", "").replace("Max", "").split(",")
-            min_val = float(parts[0].strip())
-            max_val = float(parts[1].strip())
-            return [random.uniform(min_val, max_val) for _ in range(n)]
-
-        if isinstance(weighting, str) and "Max" in weighting and "Min" not in weighting:
-            max_val = int(weighting.replace("Max", "").strip())
-            return [random.randint(0, max_val) for _ in range(n)]
-
-        weights = self._resolve_weight_list(weighting)
-        if weights and len(weights) == len(options) and sum(weights) > 0:
-            return random.choices(options, weights=weights, k=n)
-
-        if weighting == "Eq" or weights is None:
-            return [random.choice(options) for _ in range(n)]
-
-        return [random.choice(options) for _ in range(n)]
+    def _random_date(self):
+        start = datetime.strptime("2022-01-01", "%Y-%m-%d")
+        end = datetime.strptime("2025-10-31", "%Y-%m-%d")
+        delta = (end - start).days
+        return start + timedelta(days=random.randint(0, delta))
 
     def create_dataset(self, num_rows=1000):
-        headers = list(self.__fields.keys())
-        columns = {}
+        data = []
 
-        for idx, key in enumerate(headers):
-            options = self.__fields[key]
-            weighting = self.__weighting[idx] if idx < len(self.__weighting) else None
-            columns[key] = self._column_values(options, weighting, num_rows)
+        for _ in range(num_rows):
 
-        for i in range(num_rows):
-            placement_age = columns["Child Age At Placement"][i]
-            columns["Age Child Left Care"][i] = random.randint(placement_age + 1, 18)
-
-            if not columns["Returning Child"][i]:
-                columns["Placement End Reason"][i] = "N/A"
-                columns["Placement Time Period (days)"][i] = "N/A"
-                columns["Reason For Leaving Care"][i] = "N/A"
-                columns["Previous Care History"][i] = "N/A"
-
-            columns["Placement Sequence Number"][i] = columns["Child Prior Placements Number"][i] + 1
-
-            placement_to_carer = {
-                "Fostering - Long Term": "Long Term Foster",
-                "Fostering - Short Term": "Short Term Foster",
-                "Kinship": "Kinship",
-                "Residential": "Residential",
-                "Special Guardianship": "Special Guardianship",
-                "Fostering - Emergency": "Emergency Foster",
-                "Fostering - Respite": "Respite Foster",
-                "Adoption": "Adoption"
-            }
-            columns["Carer Type"][i] = placement_to_carer[columns["Placement Type"][i]]
-
-            num_carers = max(1, columns["Number Of Carers"][i])
-            columns["Number Of Carers"][i] = num_carers
-
-            ptype = columns["Placement Type"][i]
-
-            if ptype == "Kinship":
-                distance = random.uniform(0, 5)
-            elif ptype in ["Fostering - Long Term", "Fostering - Short Term",
-                           "Fostering - Emergency", "Fostering - Respite"]:
-                distance = random.uniform(0, 20)
-            elif ptype == "Residential":
-                distance = random.uniform(10, 100)
-            elif ptype == "Special Guardianship":
-                distance = random.uniform(0, 15)
-            elif ptype == "Adoption":
-                distance = random.uniform(0, 25)
-            else:
-                distance = random.uniform(0, 20)
-
-            columns["Distance From Home (miles)"][i] = round(distance, 2)
-
-            # Carer Age
-            if num_carers == 1:
-                columns["Carer Age"][i] = random.randint(25, 75)
-            else:
-                columns["Carer Age"][i] = [random.randint(25, 75) for _ in range(num_carers)]
-
-            # Carer Gender Composition (weighted)
-            genders = self.__fields["Child Gender"]
-            gender_weights = [0.05, 0.36, 0.1, 0.4, 0.09]
-
-            if num_carers == 1:
-                columns["Carer Gender Composition"][i] = random.choices(genders, weights=gender_weights)[0]
-            else:
-                columns["Carer Gender Composition"][i] = [
-                    random.choices(genders, weights=gender_weights)[0] for _ in range(num_carers)
-                ]
-
-            # Carer Ethnicity or Religion (weighted)
-            ethnicities = self.__fields["Child Ethnicity"]
-            ethnicity_weights = [
-                0.002, 0.015, 0.002, 0.005, 0.013, 0.567, 0.004, 0.026, 0.036, 0.005, 0.255,
-                0.023, 0.002, 0.002, 0.012, 0.005, 0.005, 0.036, 0.008, 0.015, 0.036
-            ]
-
-            if num_carers == 1:
-                columns["Carer Ethnicity Or Religion"][i] = random.choices(ethnicities, weights=ethnicity_weights)[0]
-            else:
-                columns["Carer Ethnicity Or Religion"][i] = [
-                    random.choices(ethnicities, weights=ethnicity_weights)[0] for _ in range(num_carers)
-                ]
-
-            sibling_size = columns["Sibling Group Size"][i]
-            if sibling_size > 1:
-                columns["Placed With Siblings"][i] = True
-            if sibling_size < 2:
-                columns["Siblings In EH"][i] = False
-
-            length_days = random.choices(
-                [
-                    random.randint(0, 100),
-                    random.randint(101, 300),
-                    random.randint(301, 600),
-                    random.randint(601, 900),
-                    random.randint(901, 1000)
-                ],
-                weights=[0.023, 0.160, 0.291, 0.381, 0.146]
+            # Child attributes
+            child_age = random.choices(
+                population=list(range(0, 18)),
+                weights=[0.02,0.02,0.03,0.03,0.05,0.07,0.10,0.12,0.13,0.13,0.10,0.08,0.05,0.04,0.02,0.01,0.01,0.01],
+                k=1
             )[0]
 
-            columns["Placement Time Period (days)"][i] = length_days
+            child_gender = self._weighted_choice(self.genders, self.gender_weights)
+            child_ethnicity = self._weighted_choice(self.ethnicities, self.ethnicity_weights)
 
-            reason = columns["Placement End Reason"][i]
+            prior_placements = random.randint(0, 4)
+            returning_child = random.choice([True, False])
+            missing_episodes = random.randint(0, 7)
 
-            # Allegation → kinship or short-term fostering
-            if reason == "Allegation (S47)":
-                if columns["Placement Type"][i] not in ["Fostering - Short Term", "Kinship"]:
-                    columns["Placement Type"][i] = random.choice(["Fostering - Short Term", "Kinship"])
+            # Siblings
+            sibling_group = random.randint(0, 5)
+            placed_with_siblings = sibling_group > 1
 
-            # Approval removed → short-term fostering
-            if reason == "Approval removed":
-                columns["Placement Type"][i] = "Fostering - Short Term"
+            # Carer attributes
+            carer_age = random.randint(25, 75)
+            carer_gender = self._weighted_choice(self.genders, self.gender_weights)
+            carer_ethnicity = self._weighted_choice(self.ethnicities, self.ethnicity_weights)
 
-            # Behaviour-related endings → kinship or short-term fostering
-            if "behaviour" in reason.lower():
-                columns["Placement Type"][i] = random.choice(["Kinship", "Fostering - Short Term"])
+            # Placement type
+            placement_type = self._weighted_choice(self.placement_types, self.placement_weights)
 
-            # Generate random placement start date between 01/01/2022 and 31/10/2025
-            start_date = datetime.strptime("2022-01-01", "%Y-%m-%d")
-            end_date = datetime.strptime("2025-10-31", "%Y-%m-%d")
+            # Distance from home
+            if placement_type == "Kinship":
+                distance = round(random.uniform(0, 5), 2)
+            elif placement_type in ["In-House Fostering", "External Fostering"]:
+                distance = round(random.uniform(0, 20), 2)
+            else:  # Residential
+                distance = round(random.uniform(10, 100), 2)
 
-            # Calculate random offset in days
-            days_between = (end_date - start_date).days
-            random_offset = random.randint(0, days_between)
+            # Placement duration
+            bucket = self._weighted_choice(self.length_buckets, self.length_weights)
+            days_placed = random.randint(bucket[0], bucket[1])
 
-            # Assign the generated date
-            columns["Placement Start Date"][i] = start_date + timedelta(days=random_offset)
+            # Dates
+            start_date = self._random_date()
+            move_date = start_date + timedelta(days=days_placed)
 
-        data = [{key: columns[key][i] for key in headers} for i in range(num_rows)]
+            # Move reason
+            move_reason = random.choice(self.move_reasons)
+
+            # Additional contextual fields
+            eh_involvement = random.choice([True, False])
+            yot_involvement = random.choice([True, False])
+
+            row = {
+                "Child Age At Placement": child_age,
+                "Child Gender": child_gender,
+                "Child Ethnicity": child_ethnicity,
+                "Child Prior Placements": prior_placements,
+                "Returning Child": returning_child,
+                "Missing Episodes": missing_episodes,
+                "Sibling Group Size": sibling_group,
+                "Placed With Siblings": placed_with_siblings,
+
+                "Carer Age": carer_age,
+                "Carer Gender": carer_gender,
+                "Carer Ethnicity": carer_ethnicity,
+
+                "Placement Type": placement_type,
+                "Placement Start Date": start_date.strftime("%Y-%m-%d"),
+                "Move Date": move_date.strftime("%Y-%m-%d"),
+                "Days Placed": days_placed,
+                "Move Reason": move_reason,
+                "Distance From Home (miles)": distance,
+
+                "EH involvement": eh_involvement,
+                "YOT involvement": yot_involvement,
+
+                "Placement Sequence Number": prior_placements + 1
+            }
+
+            data.append(row)
+
         return data
 
     def write_dataset(self, data):
         with open(self.__filePath, 'w') as file:
-            headers = list(self.__fields.keys())
+            headers = list(data[0].keys())
             file.write(",".join(headers) + "\n")
             for row in data:
-                file.write(",".join(str(value) for value in row.values()) + "\n")
-
-    def get_fields(self):
-        return self.__fields
-
-    def get_weights(self):
-        return self.__weighting
+                file.write(",".join(str(row[h]) for h in headers) + "\n")
 
     def get_file_path(self):
         return self.__filePath
 
-    def set_file_path(self, new_file_path):
-        self.__filePath = new_file_path
 
 if __name__ == "__main__":
     dsb = DatasetBuilder()
     rows = dsb.create_dataset(3000)
     dsb.write_dataset(rows)
-    print(f"Rows generated: {len(rows)}; First row below")
-    for field in dsb.get_fields().keys():
-        print(f"{field}: {rows[1][field]}")
+    print(f"Generated {len(rows)} rows at {dsb.get_file_path()}. Example:")
+    print(rows[random.randint(0,2999)])

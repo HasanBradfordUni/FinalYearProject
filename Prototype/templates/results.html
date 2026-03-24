@@ -19,9 +19,16 @@
         <li><strong>Child Age at Placement:</strong> {{ child_age }} years</li>
         <li><strong>Child Gender:</strong> {{ child_gender }}</li>
         <li><strong>Child Ethnicity:</strong> {{ child_ethnicity }}</li>
+        <li><strong>Child Prior Placements:</strong> {{ child_prior_placements }}</li>
+        <li><strong>Returning Child:</strong> {{ returning_child }}</li>
+        <li><strong>Missing Episodes:</strong> {{ missing_episodes }}</li>
+        <li><strong>Sibling Group Size:</strong> {{ sibling_group_size }}</li>
+        <li><strong>Placed With Siblings:</strong> {{ placed_with_siblings }}</li>
         <li><strong>Carer Age:</strong> {{ carer_age }} years</li>
         <li><strong>Carer Gender:</strong> {{ carer_gender }}</li>
         <li><strong>Carer Ethnicity:</strong> {{ carer_ethnicity }}</li>
+        <li><strong>EH involvement:</strong> {{ eh_involvement }}</li>
+        <li><strong>YOT involvement:</strong> {{ yot_involvement }}</li>
     </ul>
 
     <div class="result-box">
@@ -32,6 +39,8 @@
                 <strong>{{ item.type }}</strong>
                 <br>
                 Estimated Duration: <strong>{{ item.days }} days</strong>
+                <br>
+                Stability Score: <strong>{{ item.stability }}%</strong>
             </div>
         {% endfor %}
     </div>
