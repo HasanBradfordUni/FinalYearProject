@@ -2,6 +2,29 @@ import pandas as pd
 import csv
 from io import StringIO
 
+BCFT_UPLOAD_SCHEMA = [
+    "Child Age At Placement",
+    "Child Gender",
+    "Child Ethnicity",
+    "Child Prior Placements",
+    "Returning Child",
+    "Missing Episodes",
+    "Sibling Group Size",
+    "Placed With Siblings",
+    "Carer Age",
+    "Carer Gender",
+    "Carer Ethnicity",
+    "Placement Type",
+    "Placement Start Date",
+    "Move Date",
+    "Days Placed",
+    "Move Reason",
+    "Distance From Home",
+    "EH involvement",
+    "YOT involvement",
+    "Placement Sequence Number",
+]
+
 REGRESSION_FEATURE_COLUMNS = [
     "Child Age At Placement",
     "Child Gender",
@@ -50,20 +73,28 @@ def prepare_prediction_input(form, feature_encoders):
         fallback = "Unknown" if "Unknown" in classes else str(encoder.classes_[0])
         return int(encoder.transform([fallback])[0])
 
-    child_prior_placements = int(get_value("child_prior_placements", 0))
+    def parse_int(value, default=0):
+        try:
+            if value in [None, "", "None"]:
+                return int(default)
+            return int(float(value))
+        except Exception:
+            return int(default)
+
+    child_prior_placements = parse_int(get_value("child_prior_placements", 0), 0)
 
     # Setup a dataframe with entered/default values
     df = pd.DataFrame([
         {
-            "Child Age At Placement": int(get_value("child_age", 10)),
+            "Child Age At Placement": parse_int(get_value("child_age", 10), 10),
             "Child Gender": get_value("child_gender", "Unknown"),
             "Child Ethnicity": get_value("child_ethnicity", "Unknown"),
             "Child Prior Placements": child_prior_placements,
             "Returning Child": parse_bool(get_value("returning_child", "False")),
-            "Missing Episodes": int(get_value("missing_episodes", 0)),
-            "Sibling Group Size": int(get_value("sibling_group_size", 0)),
+            "Missing Episodes": parse_int(get_value("missing_episodes", 0), 0),
+            "Sibling Group Size": parse_int(get_value("sibling_group_size", 0), 0),
             "Placed With Siblings": parse_bool(get_value("placed_with_siblings", "False")),
-            "Carer Age": int(get_value("carer_age", 45)),
+            "Carer Age": parse_int(get_value("carer_age", 45), 45),
             "Carer Gender": get_value("carer_gender", "Unknown"),
             "Carer Ethnicity": get_value("carer_ethnicity", "Unknown"),
             "EH involvement": parse_bool(get_value("eh_involvement", "False")),
@@ -80,7 +111,32 @@ def prepare_prediction_input(form, feature_encoders):
 
     return df[REGRESSION_FEATURE_COLUMNS].values
 
-def generate_predictions_list(input_data, rf_model, lr_model, placement_encoder):
+def _derive_explanation_factors(feature_row, feature_names, importance_values, max_items=3):
+    if feature_names is None or importance_values is None:
+        return []
+
+    factors = []
+    for idx, feature_name in enumerate(feature_names):
+        if idx >= len(importance_values) or idx >= len(feature_row):
+            continue
+        factors.append((feature_name, float(importance_values[idx]), feature_row[idx]))
+
+    factors.sort(key=lambda item: item[1], reverse=True)
+    return [
+        f"{name} (importance {importance:.2f}, profile value {value})"
+        for name, importance, value in factors[:max_items]
+    ]
+
+
+def generate_predictions_list(
+    input_data,
+    rf_model,
+    lr_model,
+    placement_encoder,
+    breakdown_model=None,
+    placement_feature_names=None,
+    breakdown_feature_names=None,
+):
     """
     Generate predictions for all placement types.
     Returns a list of dictionaries with type, duration, and stability score.
@@ -88,7 +144,15 @@ def generate_predictions_list(input_data, rf_model, lr_model, placement_encoder)
     predictions = []
 
     if rf_model is None or lr_model is None or placement_encoder is None:
-        return [{"type": "Error", "duration": 0, "stability": 0, "message": "Models not loaded"}]
+        return [{
+            "type": "Error",
+            "duration": 0,
+            "stability": 0,
+            "breakdown_likelihood": 0,
+            "net_stability": 0,
+            "explanation_factors": ["Models are not loaded."],
+            "message": "Models not loaded",
+        }]
 
     # Get all placement types
     placement_types = placement_encoder.classes_
@@ -101,14 +165,14 @@ def generate_predictions_list(input_data, rf_model, lr_model, placement_encoder)
         input_with_placement = input_data.copy()
         input_with_placement[0][-1] = encoded_placement  # Last column is Placement Type
 
-        # Predict duration using linear regression
+        # Predict duration using regression model
         predicted_duration = lr_model.predict(input_with_placement)[0]
 
         # Predict stability using random forest (classification for placement type suitability)
         # We'll use the probability as a stability score
         input_without_placement = input_with_placement[:, :-1]  # Remove placement type column
 
-        # Get probability distribution
+        # Placement suitability probability.
         try:
             proba = rf_model.predict_proba(input_without_placement)[0]
             rf_classes = list(getattr(rf_model, "classes_", []))
@@ -116,17 +180,46 @@ def generate_predictions_list(input_data, rf_model, lr_model, placement_encoder)
                 stability_score = proba[rf_classes.index(encoded_placement)] * 100
             else:
                 stability_score = 50.0
-        except:
+        except Exception:
             stability_score = 50.0
+
+        breakdown_likelihood = 50.0
+        if breakdown_model is not None:
+            try:
+                breakdown_proba = breakdown_model.predict_proba(input_with_placement)[0]
+                breakdown_classes = list(getattr(breakdown_model, "classes_", []))
+                if 1 in breakdown_classes:
+                    breakdown_likelihood = breakdown_proba[breakdown_classes.index(1)] * 100
+                else:
+                    breakdown_likelihood = float(max(breakdown_proba) * 100)
+            except Exception:
+                breakdown_likelihood = 50.0
+
+        explanation = _derive_explanation_factors(
+            feature_row=input_without_placement[0],
+            feature_names=placement_feature_names,
+            importance_values=getattr(rf_model, "feature_importances_", None),
+        )
+        if not explanation and breakdown_model is not None:
+            explanation = _derive_explanation_factors(
+                feature_row=input_with_placement[0],
+                feature_names=breakdown_feature_names,
+                importance_values=getattr(breakdown_model, "feature_importances_", None),
+            )
+
+        net_stability = max(0.0, stability_score - breakdown_likelihood)
 
         predictions.append({
             "type": placement_type,
             "duration": max(0, int(predicted_duration)),  # Duration in days
-            "stability": round(stability_score, 1)
+            "stability": round(stability_score, 1),
+            "breakdown_likelihood": round(breakdown_likelihood, 1),
+            "net_stability": round(net_stability, 1),
+            "explanation_factors": explanation,
         })
 
-    # Sort by stability score (descending)
-    predictions.sort(key=lambda x: x["stability"], reverse=True)
+    # Rank options by lowest breakdown risk first, then strongest stability, then duration.
+    predictions.sort(key=lambda x: (x["breakdown_likelihood"], -x["stability"], -x["duration"]))
 
     return predictions
 
@@ -148,7 +241,17 @@ def extract_profile_from_form(form):
         "yot_involvement": form.yot_involvement.data,
     }
 
-def compare_placement_options(profile_data, selected_types, rf_model, lr_model, feature_encoders, placement_encoder):
+def compare_placement_options(
+    profile_data,
+    selected_types,
+    rf_model,
+    lr_model,
+    feature_encoders,
+    placement_encoder,
+    breakdown_model=None,
+    placement_feature_names=None,
+    breakdown_feature_names=None,
+):
     """
     Compare multiple placement options for a given profile.
     Returns predictions filtered by selected placement types.
@@ -165,7 +268,15 @@ def compare_placement_options(profile_data, selected_types, rf_model, lr_model, 
     input_data = prepare_prediction_input(mock_form, feature_encoders)
 
     # Generate all predictions
-    all_predictions = generate_predictions_list(input_data, rf_model, lr_model, placement_encoder)
+    all_predictions = generate_predictions_list(
+        input_data,
+        rf_model,
+        lr_model,
+        placement_encoder,
+        breakdown_model=breakdown_model,
+        placement_feature_names=placement_feature_names,
+        breakdown_feature_names=breakdown_feature_names,
+    )
 
     # Filter by selected types
     filtered_predictions = [p for p in all_predictions if p["type"] in selected_types]
@@ -187,18 +298,43 @@ def process_bulk_upload(connection, csv_file, user_id):
         # Read CSV file
         csv_content = csv_file.read().decode('utf-8')
         csv_reader = csv.DictReader(StringIO(csv_content))
+        csv_headers = csv_reader.fieldnames or []
+        missing_columns = [column for column in BCFT_UPLOAD_SCHEMA if column not in csv_headers]
+        if missing_columns:
+            raise ValueError(f"CSV schema mismatch. Missing columns: {missing_columns}")
+
+        def parse_float(value, default=0.0):
+            try:
+                if value in [None, "", "None"]:
+                    return default
+                return float(value)
+            except Exception:
+                return default
 
         for row_num, row in enumerate(csv_reader, start=2):
             try:
                 # Map CSV columns to database fields
                 placement_data = {
-                    'child_age': float(row.get('Child Age At Placement', 0)),
+                    'child_age': parse_float(row.get('Child Age At Placement'), 10),
                     'child_gender': row.get('Child Gender', 'Unknown'),
                     'child_ethnicity': row.get('Child Ethnicity', 'Unknown'),
-                    'carer_age': float(row.get('Carer Age', 0)),
+                    'child_prior_placements': int(parse_float(row.get('Child Prior Placements'), 0)),
+                    'returning_child': int(str(row.get('Returning Child', 'False')).strip().lower() in {'true', '1', 'yes'}),
+                    'missing_episodes': int(parse_float(row.get('Missing Episodes'), 0)),
+                    'sibling_group_size': int(parse_float(row.get('Sibling Group Size'), 0)),
+                    'placed_with_siblings': int(str(row.get('Placed With Siblings', 'False')).strip().lower() in {'true', '1', 'yes'}),
+                    'carer_age': parse_float(row.get('Carer Age'), 45),
                     'carer_gender': row.get('Carer Gender', row.get('Carer Gender Composition', 'Unknown')),
                     'carer_ethnicity': row.get('Carer Ethnicity', row.get('Carer Ethnicity Or Religion', 'Unknown')),
+                    'eh_involvement': int(str(row.get('EH involvement', 'False')).strip().lower() in {'true', '1', 'yes'}),
+                    'yot_involvement': int(str(row.get('YOT involvement', 'False')).strip().lower() in {'true', '1', 'yes'}),
+                    'placement_sequence_number': int(parse_float(row.get('Placement Sequence Number'), 1)),
                     'placement_type': row.get('Placement Type', 'Unknown'),
+                    'placement_duration': int(parse_float(row.get('Days Placed'), 0)),
+                    'placement_start_date': row.get('Placement Start Date'),
+                    'move_date': row.get('Move Date'),
+                    'move_reason': row.get('Move Reason', ''),
+                    'distance_from_home': parse_float(row.get('Distance From Home'), 0),
                     'uploaded_by': user_id
                 }
 

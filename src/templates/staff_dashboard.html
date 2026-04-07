@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Staff Dashboard | BCFT Placement Stability System{% endblock %}
+{% block title %}Staff Dashboard | BCFT AI Placement Predictions System{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
 
 {% block content %}
     <section class="panel">

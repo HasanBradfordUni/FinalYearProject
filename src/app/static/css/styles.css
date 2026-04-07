@@ -135,7 +135,6 @@ h1 { margin: 0 0 10px; font-size: 1.8rem; }
 }
 
 .checkbox-row { flex-direction: row; align-items: center; gap: 8px; }
-.select-multi { min-height: 150px; }
 .error { color: #b83280; font-size: 0.88rem; }
 
 .btn {
@@ -158,32 +157,13 @@ h1 { margin: 0 0 10px; font-size: 1.8rem; }
 .actions-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .panel-heading-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
 
-.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.stat-card { background: linear-gradient(180deg, #ffffff 0%, #f5f9fd 100%); border: 1px solid var(--bcft-border); border-radius: 12px; padding: 14px; }
-.stat-card h2 { font-size: 0.95rem; margin: 0 0 6px; color: var(--text-muted); }
-.stat-card p { margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--bcft-primary); }
-
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; background: #fff; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5eef5; vertical-align: top; }
 th { background: #f2f8fc; color: var(--bcft-primary); }
 
-.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-.result-card { border: 1px solid var(--bcft-border); border-left: 4px solid var(--bcft-secondary); border-radius: 12px; padding: 14px; background: #fff; }
-.result-card h3 { margin-top: 0; margin-bottom: 8px; }
-.severity-high { border-left-color: #c53030; }
-.severity-medium { border-left-color: var(--bcft-yellow); }
-
-.actions-inline { display: flex; gap: 10px; align-items: center; }
-.inline-form { display: inline; margin: 0; }
-.link-btn { background: none; border: 0; color: #b83280; text-decoration: underline; cursor: pointer; padding: 0; }
-
-@media (max-width: 960px) {
-    .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 @media (max-width: 700px) {
     .brand-logo { width: 170px; }
     .brand-text { display: none; }
-    .grid-two, .stat-grid { grid-template-columns: 1fr; }
+    .grid-two { grid-template-columns: 1fr; }
 }

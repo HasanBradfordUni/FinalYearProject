@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, Response
 from flask_login import login_required, current_user, login_user, logout_user
 from functools import wraps
 from .forms import (LoginForm, UserForm, UserEditForm, PlacementUploadForm,
@@ -10,12 +10,17 @@ from .models import (create_connection, create_tables, authenticate_user,
                      save_comparison, analyze_breakdown_patterns, get_stability_trends,
                      identify_risk_factors, calculate_stability_metrics, log_audit,
                      get_recent_audit_logs, get_audit_logs_paginated, get_system_statistics,
-                     get_system_settings, update_system_settings, generate_breakdown_recommendations)
+                     get_system_settings, update_system_settings, generate_breakdown_recommendations,
+                     get_prediction_by_id, get_comparison_by_id, get_breakdown_patterns_by_duration)
 from .utils import (prepare_prediction_input, generate_predictions_list,
                     extract_profile_from_form, compare_placement_options,
                     process_bulk_upload)
 import os
 import joblib
+import json
+import csv
+from io import StringIO
+from . import train_models
 
 # Calculate template folder relative to routes.py
 template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
@@ -26,8 +31,7 @@ connection = create_connection(db_path)
 if connection:
     create_tables(connection)
 
-# Load AI models for placement predictions
-try:
+def _load_models():
     model_search_paths = [
         os.path.join(os.path.dirname(__file__), 'static', 'models'),
         os.path.join(os.path.dirname(__file__), '..', '..', 'Prototype', 'models'),
@@ -36,13 +40,38 @@ try:
     if not models_path:
         raise FileNotFoundError("No trained model artifacts found.")
 
-    lr_model = joblib.load(os.path.join(models_path, "lr_regressor.pkl"))
-    rf_model = joblib.load(os.path.join(models_path, "rf_classifier.pkl"))
-    feature_encoders = joblib.load(os.path.join(models_path, "feature_encoders.pkl"))
-    placement_encoder = joblib.load(os.path.join(models_path, "placement_encoder.pkl"))
+    metadata = {}
+    metadata_path = os.path.join(models_path, "model_metadata.json")
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r", encoding="utf-8") as handle:
+            metadata = json.load(handle)
+
+    return {
+        "models_path": models_path,
+        "lr_model": joblib.load(os.path.join(models_path, "lr_regressor.pkl")),
+        "rf_model": joblib.load(os.path.join(models_path, "rf_classifier.pkl")),
+        "rf_reg_model": joblib.load(os.path.join(models_path, "rf_regressor.pkl")) if os.path.exists(os.path.join(models_path, "rf_regressor.pkl")) else None,
+        "breakdown_model": joblib.load(os.path.join(models_path, "rf_breakdown_classifier.pkl")) if os.path.exists(os.path.join(models_path, "rf_breakdown_classifier.pkl")) else None,
+        "feature_encoders": joblib.load(os.path.join(models_path, "feature_encoders.pkl")),
+        "placement_encoder": joblib.load(os.path.join(models_path, "placement_encoder.pkl")),
+        "metadata": metadata,
+    }
+
+
+try:
+    model_assets = _load_models()
 except Exception as e:
     print(f"Warning: Could not load AI models: {e}")
-    lr_model = rf_model = feature_encoders = placement_encoder = None
+    model_assets = {
+        "models_path": None,
+        "lr_model": None,
+        "rf_model": None,
+        "rf_reg_model": None,
+        "breakdown_model": None,
+        "feature_encoders": None,
+        "placement_encoder": None,
+        "metadata": {},
+    }
 
 # Role-based access control decorator
 def role_required(*roles):
@@ -119,11 +148,13 @@ def manager_dashboard():
     """Manager dashboard - view analytics and breakdown patterns"""
     stats = get_placement_statistics(connection)
     breakdown_patterns = analyze_breakdown_patterns(connection)
+    duration_band_patterns = get_breakdown_patterns_by_duration(connection)
     stability_trends = get_stability_trends(connection)
 
     return render_template('manager_dashboard.html',
                          stats=stats,
                          breakdown_patterns=breakdown_patterns,
+                         duration_band_patterns=duration_band_patterns,
                          stability_trends=stability_trends)
 
 @app.route('/admin-dashboard')
@@ -147,13 +178,22 @@ def upload_placement():
     """Upload individual placement record"""
     form = PlacementUploadForm()
     if form.validate_on_submit():
+        child_prior_placements = form.child_prior_placements.data or 0
         placement_data = {
             'child_age': form.child_age.data,
             'child_gender': form.child_gender.data,
             'child_ethnicity': form.child_ethnicity.data,
+            'child_prior_placements': child_prior_placements,
+            'returning_child': int(str(form.returning_child.data).strip().lower() == 'true'),
+            'missing_episodes': form.missing_episodes.data or 0,
+            'sibling_group_size': form.sibling_group_size.data or 0,
+            'placed_with_siblings': int(str(form.placed_with_siblings.data).strip().lower() == 'true'),
             'carer_age': form.carer_age.data,
             'carer_gender': form.carer_gender.data,
             'carer_ethnicity': form.carer_ethnicity.data,
+            'eh_involvement': int(str(form.eh_involvement.data).strip().lower() == 'true'),
+            'yot_involvement': int(str(form.yot_involvement.data).strip().lower() == 'true'),
+            'placement_sequence_number': child_prior_placements + 1,
             'placement_type': form.placement_type.data,
             'uploaded_by': current_user.id
         }
@@ -203,14 +243,23 @@ def predict():
     """Generate AI-powered placement stability prediction"""
     form = PredictionForm()
     if form.validate_on_submit():
-        input_data = prepare_prediction_input(form, feature_encoders)
-        predictions = generate_predictions_list(input_data, rf_model, lr_model, placement_encoder)
+        input_data = prepare_prediction_input(form, model_assets["feature_encoders"])
+        predictions = generate_predictions_list(
+            input_data,
+            model_assets["rf_model"],
+            model_assets["rf_reg_model"] or model_assets["lr_model"],
+            model_assets["placement_encoder"],
+            breakdown_model=model_assets["breakdown_model"],
+            placement_feature_names=model_assets["metadata"].get("classification_features"),
+            breakdown_feature_names=model_assets["metadata"].get("breakdown_features"),
+        )
 
         # Save prediction to database
         prediction_id = save_prediction(connection, form.data, predictions, current_user.id)
         log_audit(connection, current_user.id, 'prediction_generated', prediction_id)
 
         return render_template('results.html',
+                             prediction_id=prediction_id,
                              child_age=form.child_age.data,
                              child_gender=form.child_gender.data,
                              child_ethnicity=form.child_ethnicity.data,
@@ -235,8 +284,8 @@ def compare():
     form = ComparisonForm()
     if form.validate_on_submit():
         selected_types = form.placement_types.data
-        if len(selected_types) < 2 or len(selected_types) > 3:
-            flash('Please select between 2 and 3 placement types.', 'warning')
+        if len(selected_types) < 2 or len(selected_types) > 4:
+            flash('Please select between 2 and 4 placement types.', 'warning')
             return render_template('compare.html', form=form)
 
         profile_data = extract_profile_from_form(form)
@@ -244,8 +293,11 @@ def compare():
         # Generate predictions for each selected placement type
         comparisons = compare_placement_options(
             profile_data, selected_types,
-            rf_model, lr_model,
-            feature_encoders, placement_encoder
+            model_assets["rf_model"], model_assets["rf_reg_model"] or model_assets["lr_model"],
+            model_assets["feature_encoders"], model_assets["placement_encoder"],
+            breakdown_model=model_assets["breakdown_model"],
+            placement_feature_names=model_assets["metadata"].get("classification_features"),
+            breakdown_feature_names=model_assets["metadata"].get("breakdown_features"),
         )
 
         # Save comparison to database
@@ -253,6 +305,7 @@ def compare():
         log_audit(connection, current_user.id, 'comparison_generated', comparison_id)
 
         return render_template('comparison_results.html',
+                             comparison_id=comparison_id,
                              profile=profile_data,
                              predictions=comparisons)
 
@@ -265,13 +318,124 @@ def compare():
 def breakdown_analysis():
     """Analyze placement breakdown patterns"""
     breakdown_data = analyze_breakdown_patterns(connection)
+    duration_band_patterns = get_breakdown_patterns_by_duration(connection)
     risk_factors = identify_risk_factors(connection)
     recommendations = generate_breakdown_recommendations(breakdown_data)
 
     return render_template('breakdown_analysis.html',
                          breakdown_data=breakdown_data,
+                         duration_band_patterns=duration_band_patterns,
                          risk_factors=risk_factors,
                          recommendations=recommendations)
+
+
+@app.route('/admin/retrain-models', methods=['POST'])
+@role_required('admin')
+def retrain_models():
+    """Retrain all models from the latest uploaded dataset and reload in-memory artifacts."""
+    global model_assets
+    try:
+        train_models.main()
+        model_assets = _load_models()
+        log_audit(connection, current_user.id, 'models_retrained', model_assets.get('models_path'))
+        flash('Models retrained and reloaded successfully.', 'success')
+    except Exception as exc:
+        flash(f'Model retraining failed: {exc}', 'danger')
+    return redirect(url_for('app.admin_dashboard'))
+
+
+@app.route('/export/prediction/<int:prediction_id>.csv')
+@role_required('staff', 'manager', 'admin')
+def export_prediction_csv(prediction_id):
+    prediction = get_prediction_by_id(connection, prediction_id)
+    if not prediction:
+        flash('Prediction not found.', 'warning')
+        return redirect(url_for('app.dashboard'))
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Prediction ID', prediction['id']])
+    writer.writerow(['Created At', prediction['created_at']])
+    writer.writerow([])
+    writer.writerow(['Top Placement Type', 'Estimated Duration (days)', 'Stability (%)', 'Breakdown Likelihood (%)'])
+    writer.writerow([
+        prediction['predicted_type'],
+        prediction['predicted_duration'],
+        prediction['stability_score'],
+        prediction['breakdown_likelihood'],
+    ])
+
+    payload = prediction['prediction_payload']
+    if payload:
+        writer.writerow([])
+        writer.writerow(['Placement Type', 'Estimated Duration (days)', 'Stability (%)', 'Breakdown Likelihood (%)', 'Net Stability'])
+        for row in json.loads(payload):
+            writer.writerow([
+                row.get('type'),
+                row.get('duration'),
+                row.get('stability'),
+                row.get('breakdown_likelihood'),
+                row.get('net_stability'),
+            ])
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=prediction_{prediction_id}.csv'}
+    )
+
+
+@app.route('/export/comparison/<int:comparison_id>.csv')
+@role_required('staff', 'manager', 'admin')
+def export_comparison_csv(comparison_id):
+    comparison = get_comparison_by_id(connection, comparison_id)
+    if not comparison:
+        flash('Comparison not found.', 'warning')
+        return redirect(url_for('app.dashboard'))
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Comparison ID', comparison['id']])
+    writer.writerow(['Created At', comparison['created_at']])
+    writer.writerow([])
+    writer.writerow(['Placement Type', 'Estimated Duration (days)', 'Stability (%)', 'Breakdown Likelihood (%)', 'Net Stability'])
+
+    for row in json.loads(comparison['comparison_results'] or '[]'):
+        writer.writerow([
+            row.get('type'),
+            row.get('duration'),
+            row.get('stability'),
+            row.get('breakdown_likelihood'),
+            row.get('net_stability'),
+        ])
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=comparison_{comparison_id}.csv'}
+    )
+
+
+@app.route('/export/breakdown-analysis.csv')
+@role_required('manager', 'admin')
+def export_breakdown_analysis_csv():
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Placement Type', 'Total', 'Breakdowns', 'Breakdown Rate (%)'])
+
+    for row in analyze_breakdown_patterns(connection):
+        writer.writerow([row['placement_type'], row['total'], row['breakdowns'], row['breakdown_rate']])
+
+    writer.writerow([])
+    writer.writerow(['Duration Band', 'Total', 'Breakdowns', 'Breakdown Rate (%)'])
+    for row in get_breakdown_patterns_by_duration(connection):
+        writer.writerow([row['duration_band'], row['total'], row['breakdowns'], row['breakdown_rate']])
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=breakdown_analysis.csv'}
+    )
 
 @app.route('/stability-trends')
 @role_required('manager', 'admin')

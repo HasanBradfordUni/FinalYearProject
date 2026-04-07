@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Comparison Results | BCFT Placement Stability System{% endblock %}
+{% block title %}Comparison Results | BCFT AI Placement Predictions System{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/results.css') }}">
+{% endblock %}
 
 {% block content %}
     <section class="panel">
@@ -30,6 +34,16 @@
                         <h3>{{ item.type }}</h3>
                         <p><strong>Estimated duration:</strong> {{ item.duration }} days</p>
                         <p><strong>Stability score:</strong> {{ item.stability }}%</p>
+                        <p><strong>Breakdown likelihood:</strong> {{ item.breakdown_likelihood }}%</p>
+                        <p><strong>Net stability score:</strong> {{ item.net_stability }}%</p>
+                        {% if item.explanation_factors %}
+                            <p><strong>Key influencing factors:</strong></p>
+                            <ul>
+                                {% for factor in item.explanation_factors %}
+                                    <li>{{ factor }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
                     </article>
                 {% endfor %}
             </div>
@@ -40,6 +54,9 @@
         <div class="actions-row">
             <a class="btn btn-primary" href="{{ url_for('app.compare') }}">Run Another Comparison</a>
             <a class="btn" href="{{ url_for('app.dashboard') }}">Back to Dashboard</a>
+            {% if comparison_id %}
+                <a class="btn" href="{{ url_for('app.export_comparison_csv', comparison_id=comparison_id) }}">Export CSV</a>
+            {% endif %}
         </div>
     </section>
 {% endblock %}

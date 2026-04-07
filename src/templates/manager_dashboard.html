@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Manager Dashboard | BCFT Placement Stability System{% endblock %}
+{% block title %}Manager Dashboard | BCFT AI Placement Predictions System{% endblock %}
+
+{% block extra_head %}
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
 
 {% block content %}
 	<section class="panel">
@@ -80,6 +84,34 @@
 						</tr>
 					{% else %}
 						<tr><td colspan="3">No trend data available.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</section>
+
+	<section class="panel">
+		<h2 class="section-heading">Breakdowns by Duration Band</h2>
+		<div class="table-wrap">
+			<table>
+				<thead>
+					<tr>
+						<th>Duration Band</th>
+						<th>Total</th>
+						<th>Breakdowns</th>
+						<th>Breakdown Rate</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in duration_band_patterns %}
+						<tr>
+							<td>{{ row.duration_band }}</td>
+							<td>{{ row.total }}</td>
+							<td>{{ row.breakdowns }}</td>
+							<td>{{ '%.1f%%'|format(row.breakdown_rate or 0) }}</td>
+						</tr>
+					{% else %}
+						<tr><td colspan="4">No duration band data available.</td></tr>
 					{% endfor %}
 				</tbody>
 			</table>

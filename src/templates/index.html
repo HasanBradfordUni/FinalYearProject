@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Prediction | BCFT Placement Stability System{% endblock %}
+{% block title %}Prediction | BCFT AI Placement Predictions System{% endblock %}
 
 {% block content %}
     <section class="panel">
         <h1>Generate Placement Stability Prediction</h1>
-        <p class="muted">Enter child and carer data to generate AI-powered placement stability predictions.</p>
+        <p class="muted">Enter child and carer data to generate AI-powered placement stability predictions. If some fields are unavailable, leave them as "Not provided" and defaults will be imputed.</p>
 
         <form method="POST" action="{{ url_for('app.predict') }}" class="stack-form">
             {{ form.hidden_tag() }}

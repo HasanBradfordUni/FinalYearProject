@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Manage Users | BCFT Placement Stability System{% endblock %}
+{% block title %}Manage Users | BCFT AI Placement Predictions System{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/manageUsers.css') }}">
+{% endblock %}
 
 {% block content %}
     <section class="panel">

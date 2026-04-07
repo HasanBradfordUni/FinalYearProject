@@ -40,10 +40,22 @@ def create_tables(connection):
         child_age REAL,
         child_gender TEXT,
         child_ethnicity TEXT,
+        child_prior_placements INTEGER DEFAULT 0,
+        returning_child INTEGER DEFAULT 0,
+        missing_episodes INTEGER DEFAULT 0,
+        sibling_group_size INTEGER DEFAULT 0,
+        placed_with_siblings INTEGER DEFAULT 0,
         carer_age REAL,
         carer_gender TEXT,
         carer_ethnicity TEXT,
         placement_type TEXT,
+        placement_start_date TEXT,
+        move_date TEXT,
+        move_reason TEXT,
+        distance_from_home REAL,
+        eh_involvement INTEGER DEFAULT 0,
+        yot_involvement INTEGER DEFAULT 0,
+        placement_sequence_number INTEGER DEFAULT 1,
         placement_duration INTEGER,
         breakdown_occurred INTEGER DEFAULT 0,
         uploaded_by INTEGER,
@@ -66,6 +78,8 @@ def create_tables(connection):
         predicted_type TEXT,
         predicted_duration REAL,
         stability_score REAL,
+        breakdown_likelihood REAL DEFAULT 0,
+        prediction_payload TEXT,
         user_id INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id)
@@ -109,6 +123,31 @@ def create_tables(connection):
     );
     """
     execute_query(connection, query)
+
+    # Lightweight in-place migrations for older databases.
+    _ensure_column(connection, "placements", "child_prior_placements", "INTEGER DEFAULT 0")
+    _ensure_column(connection, "placements", "returning_child", "INTEGER DEFAULT 0")
+    _ensure_column(connection, "placements", "missing_episodes", "INTEGER DEFAULT 0")
+    _ensure_column(connection, "placements", "sibling_group_size", "INTEGER DEFAULT 0")
+    _ensure_column(connection, "placements", "placed_with_siblings", "INTEGER DEFAULT 0")
+    _ensure_column(connection, "placements", "placement_start_date", "TEXT")
+    _ensure_column(connection, "placements", "move_date", "TEXT")
+    _ensure_column(connection, "placements", "move_reason", "TEXT")
+    _ensure_column(connection, "placements", "distance_from_home", "REAL")
+    _ensure_column(connection, "placements", "eh_involvement", "INTEGER DEFAULT 0")
+    _ensure_column(connection, "placements", "yot_involvement", "INTEGER DEFAULT 0")
+    _ensure_column(connection, "placements", "placement_sequence_number", "INTEGER DEFAULT 1")
+    _ensure_column(connection, "predictions", "breakdown_likelihood", "REAL DEFAULT 0")
+    _ensure_column(connection, "predictions", "prediction_payload", "TEXT")
+
+
+def _ensure_column(connection, table_name, column_name, column_definition):
+    cursor = connection.cursor()
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+    if column_name not in existing_columns:
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
+        connection.commit()
 
 
 def execute_query(connection, query, params=None):
@@ -210,18 +249,39 @@ def add_placement_record(connection, placement_data):
     """Add a new placement record"""
     query = """
     INSERT INTO placements 
-    (child_age, child_gender, child_ethnicity, carer_age, carer_gender, carer_ethnicity, placement_type, uploaded_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    (
+        child_age, child_gender, child_ethnicity,
+        child_prior_placements, returning_child, missing_episodes, sibling_group_size, placed_with_siblings,
+        carer_age, carer_gender, carer_ethnicity,
+        placement_type, placement_start_date, move_date, move_reason, distance_from_home,
+        eh_involvement, yot_involvement, placement_sequence_number,
+        placement_duration, breakdown_occurred, uploaded_by
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     cursor = connection.cursor()
     cursor.execute(query, (
         placement_data['child_age'],
         placement_data['child_gender'],
         placement_data['child_ethnicity'],
+        placement_data.get('child_prior_placements', 0),
+        placement_data.get('returning_child', 0),
+        placement_data.get('missing_episodes', 0),
+        placement_data.get('sibling_group_size', 0),
+        placement_data.get('placed_with_siblings', 0),
         placement_data['carer_age'],
         placement_data['carer_gender'],
         placement_data['carer_ethnicity'],
         placement_data['placement_type'],
+        placement_data.get('placement_start_date'),
+        placement_data.get('move_date'),
+        placement_data.get('move_reason'),
+        placement_data.get('distance_from_home', 0),
+        placement_data.get('eh_involvement', 0),
+        placement_data.get('yot_involvement', 0),
+        placement_data.get('placement_sequence_number', 1),
+        placement_data.get('placement_duration', 0),
+        placement_data.get('breakdown_occurred', 0),
         placement_data['uploaded_by']
     ))
     connection.commit()
@@ -263,8 +323,8 @@ def save_prediction(connection, form_data, predictions, user_id):
     query = """
     INSERT INTO predictions 
     (child_age, child_gender, child_ethnicity, carer_age, carer_gender, carer_ethnicity, 
-     predicted_type, predicted_duration, stability_score, user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     predicted_type, predicted_duration, stability_score, breakdown_likelihood, prediction_payload, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     cursor = connection.cursor()
     # Use first prediction for main record
@@ -279,6 +339,8 @@ def save_prediction(connection, form_data, predictions, user_id):
         pred.get('type', ''),
         pred.get('duration', 0),
         pred.get('stability', 0),
+        pred.get('breakdown_likelihood', 0),
+        json.dumps(predictions),
         user_id
     ))
     connection.commit()
@@ -296,6 +358,20 @@ def save_comparison(connection, profile_data, comparisons, user_id):
     connection.commit()
     return cursor.lastrowid
 
+
+def get_prediction_by_id(connection, prediction_id):
+    query = "SELECT * FROM predictions WHERE id = ?"
+    cursor = connection.cursor()
+    cursor.execute(query, (prediction_id,))
+    return cursor.fetchone()
+
+
+def get_comparison_by_id(connection, comparison_id):
+    query = "SELECT * FROM comparisons WHERE id = ?"
+    cursor = connection.cursor()
+    cursor.execute(query, (comparison_id,))
+    return cursor.fetchone()
+
 # ============== Analysis Functions ==============
 
 def analyze_breakdown_patterns(connection):
@@ -309,6 +385,33 @@ def analyze_breakdown_patterns(connection):
     FROM placements
     GROUP BY placement_type
     ORDER BY breakdown_rate DESC
+    """
+    cursor = connection.cursor()
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
+def get_breakdown_patterns_by_duration(connection):
+    """Breakdown rates across duration bands (<1 year, 1-3 years, 3+ years)."""
+    query = """
+    SELECT
+        CASE
+            WHEN placement_duration < 365 THEN '<1 year'
+            WHEN placement_duration BETWEEN 365 AND 1095 THEN '1-3 years'
+            ELSE '3+ years'
+        END AS duration_band,
+        COUNT(*) AS total,
+        SUM(breakdown_occurred) AS breakdowns,
+        CASE WHEN COUNT(*) = 0 THEN 0
+             ELSE CAST(SUM(breakdown_occurred) AS FLOAT) / COUNT(*) * 100
+        END AS breakdown_rate
+    FROM placements
+    GROUP BY duration_band
+    ORDER BY CASE duration_band
+        WHEN '<1 year' THEN 1
+        WHEN '1-3 years' THEN 2
+        ELSE 3
+    END
     """
     cursor = connection.cursor()
     cursor.execute(query)

@@ -1,11 +1,20 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Dashboard | BCFT Placement Stability System{% endblock %}
+{% block title %}Admin Dashboard | BCFT AI Placement Predictions System{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
 
 {% block content %}
     <section class="panel">
         <h1>Admin Dashboard</h1>
         <p class="muted">Manage users, monitor system usage, and review audit activity.</p>
+
+        <form method="POST" action="{{ url_for('app.retrain_models') }}" style="margin-bottom: 1rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-primary" type="submit">Retrain Models From Latest Dataset</button>
+        </form>
 
         <div class="stat-grid">
             <article class="stat-card">

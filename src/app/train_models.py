@@ -5,6 +5,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import LabelEncoder
 
@@ -36,6 +37,7 @@ NUMERIC_COLUMNS = [
 ]
 PLACEMENT_COLUMN = "Placement Type"
 REGRESSION_TARGET = "Days Placed"
+BREAKDOWN_THRESHOLD_DAYS = 365
 
 def _resolve_dataset_path():
     # train_models.py lives in src/app, so dataset is in src/app/static
@@ -82,13 +84,26 @@ def load_data(file_path):
     x[PLACEMENT_COLUMN] = placement_encoder.fit_transform(x[PLACEMENT_COLUMN].astype(str))
 
     x_reg = x.copy()
-    x_class = x.drop(columns=[PLACEMENT_COLUMN])
+    x_placement_class = x.drop(columns=[PLACEMENT_COLUMN])
+    x_breakdown_class = x.copy()
 
-    y_classification = x[PLACEMENT_COLUMN].values
+    y_placement_classification = x[PLACEMENT_COLUMN].values
     y_regression = pd.to_numeric(data[REGRESSION_TARGET], errors="coerce")
     y_regression = y_regression.fillna(y_regression.median())
 
-    return x_reg, x_class, y_classification, y_regression, feature_encoders, placement_encoder
+    # Early breakdown proxy for binary classification.
+    y_breakdown = (y_regression < BREAKDOWN_THRESHOLD_DAYS).astype(int)
+
+    return (
+        x_reg,
+        x_placement_class,
+        x_breakdown_class,
+        y_placement_classification,
+        y_breakdown,
+        y_regression,
+        feature_encoders,
+        placement_encoder,
+    )
 
 def run_linear_regression(x, y):
     model = LinearRegression()
@@ -105,20 +120,51 @@ def run_random_forest(x, y):
     model.fit(x, y)
     return model
 
-def _save_artifacts(output_dir, lr_model, rf_model, encoders, placement_encoder, x_reg_cols, x_class_cols):
+
+def run_random_forest_regressor(x, y):
+    model = RandomForestRegressor(
+        n_estimators=350,
+        random_state=42,
+        min_samples_leaf=2,
+    )
+    model.fit(x, y)
+    return model
+
+def _save_artifacts(
+    output_dir,
+    lr_model,
+    rf_reg_model,
+    rf_placement_model,
+    rf_breakdown_model,
+    encoders,
+    placement_encoder,
+    x_reg_cols,
+    x_placement_cols,
+    x_breakdown_cols,
+):
     os.makedirs(output_dir, exist_ok=True)
     joblib.dump(lr_model, os.path.join(output_dir, "lr_regressor.pkl"))
-    joblib.dump(rf_model, os.path.join(output_dir, "rf_classifier.pkl"))
+    joblib.dump(rf_reg_model, os.path.join(output_dir, "rf_regressor.pkl"))
+    joblib.dump(rf_placement_model, os.path.join(output_dir, "rf_classifier.pkl"))
+    joblib.dump(rf_breakdown_model, os.path.join(output_dir, "rf_breakdown_classifier.pkl"))
     joblib.dump(encoders, os.path.join(output_dir, "feature_encoders.pkl"))
     joblib.dump(placement_encoder, os.path.join(output_dir, "placement_encoder.pkl"))
 
     rf_importance = pd.DataFrame(
         {
-            "feature": x_class_cols,
-            "importance": rf_model.feature_importances_,
+            "feature": x_placement_cols,
+            "importance": rf_placement_model.feature_importances_,
         }
     ).sort_values("importance", ascending=False)
     rf_importance.to_csv(os.path.join(output_dir, "rf_feature_importance.csv"), index=False)
+
+    breakdown_importance = pd.DataFrame(
+        {
+            "feature": x_breakdown_cols,
+            "importance": rf_breakdown_model.feature_importances_,
+        }
+    ).sort_values("importance", ascending=False)
+    breakdown_importance.to_csv(os.path.join(output_dir, "rf_breakdown_feature_importance.csv"), index=False)
 
     lr_coefficients = pd.DataFrame(
         {
@@ -130,9 +176,11 @@ def _save_artifacts(output_dir, lr_model, rf_model, encoders, placement_encoder,
 
     metadata = {
         "regression_features": x_reg_cols,
-        "classification_features": x_class_cols,
+        "classification_features": x_placement_cols,
+        "breakdown_features": x_breakdown_cols,
         "categorical_columns": CATEGORICAL_COLUMNS,
         "placement_classes": placement_encoder.classes_.tolist(),
+        "breakdown_threshold_days": BREAKDOWN_THRESHOLD_DAYS,
     }
     with open(os.path.join(output_dir, "model_metadata.json"), "w", encoding="utf-8") as fh:
         json.dump(metadata, fh, indent=2)
@@ -140,10 +188,21 @@ def _save_artifacts(output_dir, lr_model, rf_model, encoders, placement_encoder,
 
 def main():
     dataset_path = _resolve_dataset_path()
-    x_reg, x_class, y_class, y_reg, encoders, placement_encoder = load_data(dataset_path)
+    (
+        x_reg,
+        x_placement_class,
+        x_breakdown_class,
+        y_placement_class,
+        y_breakdown,
+        y_reg,
+        encoders,
+        placement_encoder,
+    ) = load_data(dataset_path)
 
     lr_model = run_linear_regression(x_reg, y_reg)
-    rf_model = run_random_forest(x_class, y_class)
+    rf_reg_model = run_random_forest_regressor(x_reg, y_reg)
+    rf_placement_model = run_random_forest(x_placement_class, y_placement_class)
+    rf_breakdown_model = run_random_forest(x_breakdown_class, y_breakdown)
 
     app_dir = Path(__file__).resolve().parent
     output_dirs = [
@@ -154,11 +213,14 @@ def main():
         _save_artifacts(
             str(output_dir),
             lr_model,
-            rf_model,
+            rf_reg_model,
+            rf_placement_model,
+            rf_breakdown_model,
             encoders,
             placement_encoder,
             x_reg.columns.tolist(),
-            x_class.columns.tolist(),
+            x_placement_class.columns.tolist(),
+            x_breakdown_class.columns.tolist(),
         )
 
     print(f"Models and explainability artifacts saved to: {', '.join(str(p) for p in output_dirs)}")
