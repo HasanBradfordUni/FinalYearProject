@@ -27,6 +27,8 @@ def create_tables(connection):
         password_hash TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'staff',
         is_active INTEGER DEFAULT 1,
+        must_reset_password INTEGER DEFAULT 0,
+        temp_password_issued_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_login TIMESTAMP
     );
@@ -139,6 +141,8 @@ def create_tables(connection):
     _ensure_column(connection, "placements", "placement_sequence_number", "INTEGER DEFAULT 1")
     _ensure_column(connection, "predictions", "breakdown_likelihood", "REAL DEFAULT 0")
     _ensure_column(connection, "predictions", "prediction_payload", "TEXT")
+    _ensure_column(connection, "users", "must_reset_password", "INTEGER DEFAULT 0")
+    _ensure_column(connection, "users", "temp_password_issued_at", "TIMESTAMP")
 
 
 def _ensure_column(connection, table_name, column_name, column_definition):
@@ -167,13 +171,14 @@ def execute_query(connection, query, params=None):
 
 class User(UserMixin):
     """User model for Flask-Login"""
-    def __init__(self, id, username, email, role, is_active=True):
+    def __init__(self, id, username, email, role, is_active=True, must_reset_password=False):
         self.id = id
         self.username = username
         self.email = email
         self.role = role
         # Keep DB active flag in a private field to avoid assigning to UserMixin property.
         self._is_active = bool(is_active)
+        self.must_reset_password = bool(must_reset_password)
 
     @property
     def is_active(self):
@@ -204,7 +209,14 @@ def authenticate_user(connection, username, password):
         cursor.execute(update_query, (datetime.now(), row['id']))
         connection.commit()
 
-        return User(row['id'], row['username'], row['email'], row['role'], row['is_active'])
+        return User(
+            row['id'],
+            row['username'],
+            row['email'],
+            row['role'],
+            row['is_active'],
+            row['must_reset_password']
+        )
     return None
 
 def get_user_by_id(connection, user_id):
@@ -215,8 +227,58 @@ def get_user_by_id(connection, user_id):
     row = cursor.fetchone()
 
     if row:
-        return User(row['id'], row['username'], row['email'], row['role'], row['is_active'])
+        return User(
+            row['id'],
+            row['username'],
+            row['email'],
+            row['role'],
+            row['is_active'],
+            row['must_reset_password']
+        )
     return None
+
+
+def get_user_by_identifier(connection, identifier):
+    """Get active user by username or email for account recovery."""
+    query = "SELECT * FROM users WHERE is_active = 1 AND (username = ? OR email = ?)"
+    cursor = connection.cursor()
+    cursor.execute(query, (identifier, identifier))
+    return cursor.fetchone()
+
+
+def verify_user_password(connection, user_id, password):
+    """Verify whether provided password matches stored hash for a user."""
+    query = "SELECT password_hash FROM users WHERE id = ?"
+    cursor = connection.cursor()
+    cursor.execute(query, (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        return False
+    return check_password_hash(row['password_hash'], password)
+
+
+def update_user_password(connection, user_id, new_password, must_reset_password=False):
+    """Update user password hash and reset any temporary password state."""
+    query = """
+    UPDATE users
+    SET password_hash = ?, must_reset_password = ?, temp_password_issued_at = NULL
+    WHERE id = ?
+    """
+    cursor = connection.cursor()
+    cursor.execute(query, (generate_password_hash(new_password), int(bool(must_reset_password)), user_id))
+    connection.commit()
+
+
+def issue_temporary_password(connection, user_id, temporary_password):
+    """Set a one-time temporary password and force password change on next login."""
+    query = """
+    UPDATE users
+    SET password_hash = ?, must_reset_password = 1, temp_password_issued_at = ?
+    WHERE id = ?
+    """
+    cursor = connection.cursor()
+    cursor.execute(query, (generate_password_hash(temporary_password), datetime.now(), user_id))
+    connection.commit()
 
 def get_all_users(connection):
     """Get all users"""

@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, Response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, current_app
 from flask_login import login_required, current_user, login_user, logout_user
 from functools import wraps
 from .forms import (LoginForm, UserForm, UserEditForm, PlacementUploadForm,
-                    BulkUploadForm, PredictionForm, ComparisonForm)
+                    BulkUploadForm, PredictionForm, ComparisonForm,
+                    ForgotPasswordForm, ChangePasswordForm, ResetPasswordForm)
 from .models import (create_connection, create_tables, authenticate_user,
                      get_user_by_id, get_all_users, create_user, update_user,
                      delete_user_by_id, add_placement_record, get_placement_by_id,
@@ -11,7 +12,9 @@ from .models import (create_connection, create_tables, authenticate_user,
                      identify_risk_factors, calculate_stability_metrics, log_audit,
                      get_recent_audit_logs, get_audit_logs_paginated, get_system_statistics,
                      get_system_settings, update_system_settings, generate_breakdown_recommendations,
-                     get_prediction_by_id, get_comparison_by_id, get_breakdown_patterns_by_duration)
+                     get_prediction_by_id, get_comparison_by_id, get_breakdown_patterns_by_duration,
+                     get_user_by_identifier, verify_user_password, update_user_password,
+                     issue_temporary_password)
 from .utils import (prepare_prediction_input, generate_predictions_list,
                     extract_profile_from_form, compare_placement_options,
                     process_bulk_upload)
@@ -19,7 +22,10 @@ import os
 import joblib
 import json
 import csv
+import smtplib
+import secrets
 from io import StringIO
+from email.message import EmailMessage
 from . import train_models
 
 # Calculate template folder relative to routes.py
@@ -30,6 +36,47 @@ db_path = os.path.join(os.path.dirname(__file__), 'static', 'placements.db')
 connection = create_connection(db_path)
 if connection:
     create_tables(connection)
+
+
+def _generate_temporary_password(length=12):
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _send_temporary_password_email(to_email, username, temporary_password):
+    """Attempt to send temp password email; returns True when SMTP send succeeds."""
+    smtp_host = current_app.config.get('MAIL_SERVER')
+    if not smtp_host:
+        return False
+
+    smtp_port = int(current_app.config.get('MAIL_PORT', 587))
+    smtp_username = current_app.config.get('MAIL_USERNAME')
+    smtp_password = current_app.config.get('MAIL_PASSWORD')
+    sender = current_app.config.get('MAIL_DEFAULT_SENDER', smtp_username or 'no-reply@bcft.local')
+    use_tls = bool(current_app.config.get('MAIL_USE_TLS', True))
+
+    message = EmailMessage()
+    message['Subject'] = 'BCFT Placement System - Temporary Password'
+    message['From'] = sender
+    message['To'] = to_email
+    message.set_content(
+        f"Hello {username},\n\n"
+        "A temporary password has been generated for your BCFT account.\n"
+        f"Temporary Password: {temporary_password}\n\n"
+        "Sign in using this temporary password and set a new password immediately.\n"
+    )
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as smtp:
+            if use_tls:
+                smtp.starttls()
+            if smtp_username and smtp_password:
+                smtp.login(smtp_username, smtp_password)
+            smtp.send_message(message)
+        return True
+    except Exception as exc:
+        print(f"Warning: failed to send temporary password email: {exc}")
+        return False
 
 def _load_models():
     model_search_paths = [
@@ -89,6 +136,26 @@ def role_required(*roles):
         return decorated_function
     return decorator
 
+
+@app.before_app_request
+def enforce_temporary_password_reset():
+    """Users with temporary passwords can only access password reset until updated."""
+    if not current_user.is_authenticated or not getattr(current_user, 'must_reset_password', False):
+        return None
+
+    allowed_endpoints = {
+        'app.force_password_reset',
+        'app.logout',
+        'app.login',
+        'app.forgot_password',
+        'static',
+    }
+    if request.endpoint in allowed_endpoints:
+        return None
+
+    flash('Please set a new password before continuing.', 'warning')
+    return redirect(url_for('app.force_password_reset'))
+
 # ============== Authentication Routes ==============
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -101,8 +168,11 @@ def login():
     if form.validate_on_submit():
         user = authenticate_user(connection, form.username.data, form.password.data)
         if user:
-            login_user(user)
+            login_user(user, remember=bool(form.remember_me.data))
             flash(f'Welcome back, {user.username}!', 'success')
+            if user.must_reset_password:
+                flash('You are signed in with a temporary password. Please set a new password.', 'warning')
+                return redirect(url_for('app.force_password_reset'))
             next_page = request.args.get('next')
             return redirect(next_page if next_page else url_for('app.dashboard'))
         else:
@@ -117,6 +187,69 @@ def logout():
     logout_user()
     flash('You have been logged out successfully.', 'info')
     return redirect(url_for('app.login'))
+
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """Generate one-time temporary password and email it to the account holder."""
+    if current_user.is_authenticated:
+        return redirect(url_for('app.dashboard'))
+
+    form = ForgotPasswordForm()
+    if form.validate_on_submit():
+        user = get_user_by_identifier(connection, form.identifier.data.strip())
+        if not user:
+            flash('If an account exists for those details, a temporary password has been generated.', 'info')
+            return redirect(url_for('app.login'))
+
+        temporary_password = _generate_temporary_password()
+        issue_temporary_password(connection, user['id'], temporary_password)
+        email_sent = _send_temporary_password_email(user['email'], user['username'], temporary_password)
+        log_audit(connection, user['id'], 'temporary_password_issued', 'forgot_password_flow')
+
+        return render_template(
+            'temp_password_result.html',
+            username=user['username'],
+            temporary_password=temporary_password,
+            email_sent=email_sent,
+        )
+
+    return render_template('forgot_password.html', form=form)
+
+
+@app.route('/account/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """Allow any authenticated user to update their own password."""
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        if not verify_user_password(connection, current_user.id, form.current_password.data):
+            flash('Current password is incorrect.', 'danger')
+            return render_template('change_password.html', form=form)
+
+        update_user_password(connection, current_user.id, form.new_password.data)
+        log_audit(connection, current_user.id, 'password_changed', 'self_service')
+        flash('Password updated successfully.', 'success')
+        return redirect(url_for('app.dashboard'))
+
+    return render_template('change_password.html', form=form)
+
+
+@app.route('/reset-password-temp', methods=['GET', 'POST'])
+@login_required
+def force_password_reset():
+    """Enforce new password setup after temporary password login."""
+    if not getattr(current_user, 'must_reset_password', False):
+        return redirect(url_for('app.dashboard'))
+
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        update_user_password(connection, current_user.id, form.new_password.data)
+        log_audit(connection, current_user.id, 'password_reset_completed', 'temporary_password')
+        flash('Your password has been updated. You can now use the full system.', 'success')
+        return redirect(url_for('app.dashboard'))
+
+    return render_template('reset_password.html', form=form)
 
 # ============== Dashboard Routes ==============
 

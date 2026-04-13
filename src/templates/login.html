@@ -32,6 +32,10 @@
                     {{ form.remember_me.label }}
                 </div>
 
+                <p class="auth-inline-link">
+                    <a href="{{ url_for('app.forgot_password') }}">Forgot password?</a>
+                </p>
+
                 {{ form.submit(class="btn btn-primary btn-block") }}
             </form>
         </div>

@@ -32,3 +32,36 @@
     height: 18px;
     accent-color: #ce0f69;
 }
+
+.auth-inline-link {
+    text-align: center;
+    margin: 2px 0 0;
+}
+
+.auth-inline-link a {
+    color: #07375f;
+    font-weight: 600;
+}
+
+.temp-password-box {
+    border: 1px dashed #a2c7e2;
+    border-radius: 12px;
+    background: #f8fbff;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.temp-password-box code {
+    background: #07375f;
+    color: #ffffff;
+    padding: 2px 6px;
+    border-radius: 6px;
+}
+
+.auth-note {
+    margin: 10px 0 14px;
+    font-size: 0.94rem;
+}
+
+.auth-note.success { color: #20653f; }
+.auth-note.warning { color: #8f5c00; }
