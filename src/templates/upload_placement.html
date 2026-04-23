@@ -9,20 +9,20 @@
 			{{ form.hidden_tag() }}
 
 			<div class="grid-two">
-				<div class="form-group">{{ form.child_age.label }}{{ form.child_age(class='form-control') }}</div>
-				<div class="form-group">{{ form.child_gender.label }}{{ form.child_gender(class='form-control') }}</div>
-				<div class="form-group">{{ form.child_ethnicity.label }}{{ form.child_ethnicity(class='form-control') }}</div>
-				<div class="form-group">{{ form.child_prior_placements.label }}{{ form.child_prior_placements(class='form-control') }}</div>
-				<div class="form-group">{{ form.returning_child.label }}{{ form.returning_child(class='form-control') }}</div>
-				<div class="form-group">{{ form.missing_episodes.label }}{{ form.missing_episodes(class='form-control') }}</div>
-				<div class="form-group">{{ form.sibling_group_size.label }}{{ form.sibling_group_size(class='form-control') }}</div>
-				<div class="form-group">{{ form.placed_with_siblings.label }}{{ form.placed_with_siblings(class='form-control') }}</div>
-				<div class="form-group">{{ form.carer_age.label }}{{ form.carer_age(class='form-control') }}</div>
-				<div class="form-group">{{ form.carer_gender.label }}{{ form.carer_gender(class='form-control') }}</div>
-				<div class="form-group">{{ form.carer_ethnicity.label }}{{ form.carer_ethnicity(class='form-control') }}</div>
-				<div class="form-group">{{ form.eh_involvement.label }}{{ form.eh_involvement(class='form-control') }}</div>
-				<div class="form-group">{{ form.yot_involvement.label }}{{ form.yot_involvement(class='form-control') }}</div>
-				<div class="form-group">{{ form.placement_type.label }}{{ form.placement_type(class='form-control') }}</div>
+				<div class="form-group">{{ form.child_age.label }}{{ form.child_age(class='form-control') }}{% if form.child_age.errors %}<div class="error">{{ form.child_age.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.child_gender.label }}{{ form.child_gender(class='form-control') }}{% if form.child_gender.errors %}<div class="error">{{ form.child_gender.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.child_ethnicity.label }}{{ form.child_ethnicity(class='form-control') }}{% if form.child_ethnicity.errors %}<div class="error">{{ form.child_ethnicity.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.child_prior_placements.label }}{{ form.child_prior_placements(class='form-control') }}{% if form.child_prior_placements.errors %}<div class="error">{{ form.child_prior_placements.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.returning_child.label }}{{ form.returning_child(class='form-control') }}{% if form.returning_child.errors %}<div class="error">{{ form.returning_child.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.missing_episodes.label }}{{ form.missing_episodes(class='form-control') }}{% if form.missing_episodes.errors %}<div class="error">{{ form.missing_episodes.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.sibling_group_size.label }}{{ form.sibling_group_size(class='form-control') }}{% if form.sibling_group_size.errors %}<div class="error">{{ form.sibling_group_size.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.placed_with_siblings.label }}{{ form.placed_with_siblings(class='form-control') }}{% if form.placed_with_siblings.errors %}<div class="error">{{ form.placed_with_siblings.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.carer_age.label }}{{ form.carer_age(class='form-control') }}{% if form.carer_age.errors %}<div class="error">{{ form.carer_age.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.carer_gender.label }}{{ form.carer_gender(class='form-control') }}{% if form.carer_gender.errors %}<div class="error">{{ form.carer_gender.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.carer_ethnicity.label }}{{ form.carer_ethnicity(class='form-control') }}{% if form.carer_ethnicity.errors %}<div class="error">{{ form.carer_ethnicity.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.eh_involvement.label }}{{ form.eh_involvement(class='form-control') }}{% if form.eh_involvement.errors %}<div class="error">{{ form.eh_involvement.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.yot_involvement.label }}{{ form.yot_involvement(class='form-control') }}{% if form.yot_involvement.errors %}<div class="error">{{ form.yot_involvement.errors[0] }}</div>{% endif %}</div>
+				<div class="form-group">{{ form.placement_type.label }}{{ form.placement_type(class='form-control') }}{% if form.placement_type.errors %}<div class="error">{{ form.placement_type.errors[0] }}</div>{% endif %}</div>
 			</div>
 
 			{{ form.submit(class='btn btn-primary') }}

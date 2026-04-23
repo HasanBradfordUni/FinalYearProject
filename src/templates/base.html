@@ -21,14 +21,23 @@
             {% if current_user.is_authenticated %}
                 <nav class="main-nav" aria-label="Primary navigation">
                     <a href="{{ url_for('app.dashboard') }}">Dashboard</a>
-                    <a href="{{ url_for('app.predict') }}">Predict</a>
-                    <a href="{{ url_for('app.compare') }}">Compare</a>
-                    {% if current_user.role in ['manager', 'admin'] %}
-                        <a href="{{ url_for('app.breakdown_analysis') }}">Analysis</a>
+                    {% if can(current_user, 'predict') %}
+                        <a href="{{ url_for('app.predict') }}">Predict</a>
                     {% endif %}
-                    {% if current_user.role == 'admin' %}
+                    {% if can(current_user, 'compare') %}
+                        <a href="{{ url_for('app.compare') }}">Compare</a>
+                    {% endif %}
+                    {% if can(current_user, 'breakdown_full') %}
+                        <a href="{{ url_for('app.breakdown_analysis') }}">Analysis</a>
+                    {% elif can(current_user, 'breakdown_read') %}
+                        <a href="{{ url_for('app.breakdown_analysis_staff') }}">Analysis</a>
+                    {% endif %}
+                    {% if can(current_user, 'admin_manage_system') %}
                         <a href="{{ url_for('app.manage_users') }}">Users</a>
                         <a href="{{ url_for('app.system_settings') }}">Settings</a>
+                    {% endif %}
+                    {% if can(current_user, 'view_audit_logs') %}
+                        <a href="{{ url_for('app.audit_logs') }}">Audit Logs</a>
                     {% endif %}
                     <a href="{{ url_for('app.change_password') }}">Change Password</a>
                     <a href="{{ url_for('app.logout') }}">Logout</a>

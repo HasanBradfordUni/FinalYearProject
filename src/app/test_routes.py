@@ -330,10 +330,10 @@ def test_user_management_and_settings_routes_expected_behavior(app_client, monke
     assert client.get("/users/add").status_code == 200
     assert client.post(
         "/users/add",
-        data={"username": "newuser", "email": "new@example.com", "password": "Password123", "confirm_password": "Password123", "role": "staff"},
+        data={"username": "newuser", "email": "new@example.com", "password": "Password123", "confirm_password": "Password123", "role": "placement_officer"},
     ).status_code == 302
     assert client.get("/users/70/edit").status_code == 200
-    assert client.post("/users/70/edit", data={"username": "u", "email": "u@example.com", "role": "staff"}).status_code == 302
+    assert client.post("/users/70/edit", data={"username": "u", "email": "u@example.com", "role": "placement_officer"}).status_code == 302
     assert client.post("/users/70/delete").status_code == 302
 
     assert client.get("/settings").status_code == 200

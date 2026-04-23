@@ -12,10 +12,19 @@
         <p class="muted">Upload placement records, generate predictions, and compare placement options.</p>
 
         <div class="actions-row">
-            <a class="btn btn-primary" href="{{ url_for('app.upload_placement') }}">Upload Placement</a>
-            <a class="btn" href="{{ url_for('app.upload_bulk') }}">Bulk Upload CSV</a>
-            <a class="btn" href="{{ url_for('app.predict') }}">Generate Prediction</a>
-            <a class="btn" href="{{ url_for('app.compare') }}">Compare Options</a>
+            {% if can(current_user, 'upload_placements') %}
+                <a class="btn btn-primary" href="{{ url_for('app.upload_placement') }}">Upload Placement</a>
+                <a class="btn" href="{{ url_for('app.upload_bulk') }}">Bulk Upload CSV</a>
+            {% endif %}
+            {% if can(current_user, 'predict') %}
+                <a class="btn" href="{{ url_for('app.predict') }}">Generate Prediction</a>
+            {% endif %}
+            {% if can(current_user, 'compare') %}
+                <a class="btn" href="{{ url_for('app.compare') }}">Compare Options</a>
+            {% endif %}
+            {% if can(current_user, 'breakdown_read') %}
+                <a class="btn" href="{{ url_for('app.breakdown_analysis_staff') }}">Breakdown Analysis</a>
+            {% endif %}
         </div>
 
         <div class="stat-grid">

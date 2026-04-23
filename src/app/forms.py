@@ -1,7 +1,8 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, PasswordField, SelectField, IntegerField, SubmitField, SelectMultipleField, BooleanField
-from wtforms.validators import DataRequired, Email, Length, NumberRange, EqualTo, Optional
+from wtforms.validators import DataRequired, InputRequired, Email, Length, NumberRange, EqualTo, Optional
+from .permissions import get_role_choices
 
 GENDER_CHOICES = [
     ('Non binary', 'Non binary'),
@@ -77,28 +78,28 @@ class UserForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Password', validators=[DataRequired(), Length(min=8)])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
-    role = SelectField('Role', choices=[('staff', 'Staff'), ('manager', 'Manager'), ('admin', 'Admin')], validators=[DataRequired()])
+    role = SelectField('Role', choices=get_role_choices(), validators=[DataRequired()])
     submit = SubmitField('Create User')
 
 class UserEditForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=3, max=50)])
     email = StringField('Email', validators=[DataRequired(), Email()])
-    role = SelectField('Role', choices=[('staff', 'Staff'), ('manager', 'Manager'), ('admin', 'Admin')], validators=[DataRequired()])
+    role = SelectField('Role', choices=get_role_choices(), validators=[DataRequired()])
     is_active = BooleanField('Active')
     submit = SubmitField('Update User')
 
 # ============== Placement Data Forms ==============
 
 class PlacementUploadForm(FlaskForm):
-    child_age = IntegerField('Child Age at Placement', validators=[DataRequired(), NumberRange(min=0, max=17)], render_kw={'min': 0, 'max': 17, 'step': 1})
+    child_age = IntegerField('Child Age at Placement', validators=[InputRequired(), NumberRange(min=0, max=17)], render_kw={'min': 0, 'max': 17, 'step': 1})
     child_gender = SelectField('Child Gender', choices=GENDER_CHOICES, validators=[DataRequired()])
     child_ethnicity = SelectField('Child Ethnicity', choices=ETHNICITY_CHOICES, validators=[DataRequired()])
-    child_prior_placements = IntegerField('Child Prior Placements', validators=[DataRequired(), NumberRange(min=0, max=4)], render_kw={'min': 0, 'max': 4, 'step': 1})
+    child_prior_placements = IntegerField('Child Prior Placements', validators=[InputRequired(), NumberRange(min=0, max=4)], render_kw={'min': 0, 'max': 4, 'step': 1})
     returning_child = SelectField('Returning Child', choices=BOOLEAN_CHOICES, validators=[DataRequired()])
-    missing_episodes = IntegerField('Missing Episodes', validators=[DataRequired(), NumberRange(min=0, max=7)], render_kw={'min': 0, 'max': 7, 'step': 1})
-    sibling_group_size = IntegerField('Sibling Group Size', validators=[DataRequired(), NumberRange(min=0, max=5)], render_kw={'min': 0, 'max': 5, 'step': 1})
+    missing_episodes = IntegerField('Missing Episodes', validators=[InputRequired(), NumberRange(min=0, max=7)], render_kw={'min': 0, 'max': 7, 'step': 1})
+    sibling_group_size = IntegerField('Sibling Group Size', validators=[InputRequired(), NumberRange(min=1, max=5)], render_kw={'min': 1, 'max': 5, 'step': 1, 'value': 1})
     placed_with_siblings = SelectField('Placed With Siblings', choices=BOOLEAN_CHOICES, validators=[DataRequired()])
-    carer_age = IntegerField('Carer Age', validators=[DataRequired(), NumberRange(min=25, max=75)], render_kw={'min': 25, 'max': 75, 'step': 1})
+    carer_age = IntegerField('Carer Age', validators=[InputRequired(), NumberRange(min=25, max=75)], render_kw={'min': 25, 'max': 75, 'step': 1})
     carer_gender = SelectField('Carer Gender', choices=GENDER_CHOICES, validators=[DataRequired()])
     carer_ethnicity = SelectField('Carer Ethnicity', choices=ETHNICITY_CHOICES, validators=[DataRequired()])
     eh_involvement = SelectField('EH involvement', choices=BOOLEAN_CHOICES, validators=[DataRequired()])
@@ -113,15 +114,15 @@ class BulkUploadForm(FlaskForm):
 # ============== Prediction Forms ==============
 
 class PredictionForm(FlaskForm):
-    child_age = IntegerField('Child Age at Placement', validators=[Optional(), NumberRange(min=0, max=17)], render_kw={'min': 0, 'max': 17, 'step': 1})
+    child_age = IntegerField('Child Age at Placement', validators=[Optional(), NumberRange(min=0, max=17)], render_kw={'min': 0, 'max': 17, 'step': 1, 'placeholder': 'Leave blank to use average'})
     child_gender = SelectField('Child Gender', choices=GENDER_CHOICES_OPTIONAL, validators=[Optional()])
     child_ethnicity = SelectField('Child Ethnicity', choices=ETHNICITY_CHOICES_OPTIONAL, validators=[Optional()])
-    child_prior_placements = IntegerField('Child Prior Placements', validators=[Optional(), NumberRange(min=0, max=4)], render_kw={'min': 0, 'max': 4, 'step': 1})
+    child_prior_placements = IntegerField('Child Prior Placements', validators=[Optional(), NumberRange(min=0, max=4)], render_kw={'min': 0, 'max': 4, 'step': 1, 'placeholder': 'Leave blank to use average'})
     returning_child = SelectField('Returning Child', choices=BOOLEAN_CHOICES_OPTIONAL, validators=[Optional()])
-    missing_episodes = IntegerField('Missing Episodes', validators=[Optional(), NumberRange(min=0, max=7)], render_kw={'min': 0, 'max': 7, 'step': 1})
-    sibling_group_size = IntegerField('Sibling Group Size', validators=[Optional(), NumberRange(min=0, max=5)], render_kw={'min': 0, 'max': 5, 'step': 1})
+    missing_episodes = IntegerField('Missing Episodes', validators=[Optional(), NumberRange(min=0, max=7)], render_kw={'min': 0, 'max': 7, 'step': 1, 'placeholder': 'Leave blank to use average'})
+    sibling_group_size = IntegerField('Sibling Group Size', validators=[Optional(), NumberRange(min=1, max=5)], render_kw={'min': 1, 'max': 5, 'step': 1, 'placeholder': 'Leave blank to use average'})
     placed_with_siblings = SelectField('Placed With Siblings', choices=BOOLEAN_CHOICES_OPTIONAL, validators=[Optional()])
-    carer_age = IntegerField('Carer Age', validators=[Optional(), NumberRange(min=25, max=75)], render_kw={'min': 25, 'max': 75, 'step': 1})
+    carer_age = IntegerField('Carer Age', validators=[Optional(), NumberRange(min=25, max=75)], render_kw={'min': 25, 'max': 75, 'step': 1, 'placeholder': 'Leave blank to use average'})
     carer_gender = SelectField('Carer Gender', choices=GENDER_CHOICES_OPTIONAL, validators=[Optional()])
     carer_ethnicity = SelectField('Carer Ethnicity', choices=ETHNICITY_CHOICES_OPTIONAL, validators=[Optional()])
     eh_involvement = SelectField('EH involvement', choices=BOOLEAN_CHOICES_OPTIONAL, validators=[Optional()])
@@ -129,15 +130,15 @@ class PredictionForm(FlaskForm):
     submit = SubmitField('Generate Prediction')
 
 class ComparisonForm(FlaskForm):
-    child_age = IntegerField('Child Age at Placement', validators=[Optional(), NumberRange(min=0, max=17)], render_kw={'min': 0, 'max': 17, 'step': 1})
+    child_age = IntegerField('Child Age at Placement', validators=[Optional(), NumberRange(min=0, max=17)], render_kw={'min': 0, 'max': 17, 'step': 1, 'placeholder': 'Leave blank to use average'})
     child_gender = SelectField('Child Gender', choices=GENDER_CHOICES_OPTIONAL, validators=[Optional()])
     child_ethnicity = SelectField('Child Ethnicity', choices=ETHNICITY_CHOICES_OPTIONAL, validators=[Optional()])
-    child_prior_placements = IntegerField('Child Prior Placements', validators=[Optional(), NumberRange(min=0, max=4)], render_kw={'min': 0, 'max': 4, 'step': 1})
+    child_prior_placements = IntegerField('Child Prior Placements', validators=[Optional(), NumberRange(min=0, max=4)], render_kw={'min': 0, 'max': 4, 'step': 1, 'placeholder': 'Leave blank to use average'})
     returning_child = SelectField('Returning Child', choices=BOOLEAN_CHOICES_OPTIONAL, validators=[Optional()])
-    missing_episodes = IntegerField('Missing Episodes', validators=[Optional(), NumberRange(min=0, max=7)], render_kw={'min': 0, 'max': 7, 'step': 1})
-    sibling_group_size = IntegerField('Sibling Group Size', validators=[Optional(), NumberRange(min=0, max=5)], render_kw={'min': 0, 'max': 5, 'step': 1})
+    missing_episodes = IntegerField('Missing Episodes', validators=[Optional(), NumberRange(min=0, max=7)], render_kw={'min': 0, 'max': 7, 'step': 1, 'placeholder': 'Leave blank to use average'})
+    sibling_group_size = IntegerField('Sibling Group Size', validators=[Optional(), NumberRange(min=1, max=5)], render_kw={'min': 1, 'max': 5, 'step': 1, 'placeholder': 'Leave blank to use average'})
     placed_with_siblings = SelectField('Placed With Siblings', choices=BOOLEAN_CHOICES_OPTIONAL, validators=[Optional()])
-    carer_age = IntegerField('Carer Age', validators=[Optional(), NumberRange(min=25, max=75)], render_kw={'min': 25, 'max': 75, 'step': 1})
+    carer_age = IntegerField('Carer Age', validators=[Optional(), NumberRange(min=25, max=75)], render_kw={'min': 25, 'max': 75, 'step': 1, 'placeholder': 'Leave blank to use average'})
     carer_gender = SelectField('Carer Gender', choices=GENDER_CHOICES_OPTIONAL, validators=[Optional()])
     carer_ethnicity = SelectField('Carer Ethnicity', choices=ETHNICITY_CHOICES_OPTIONAL, validators=[Optional()])
     eh_involvement = SelectField('EH involvement', choices=BOOLEAN_CHOICES_OPTIONAL, validators=[Optional()])

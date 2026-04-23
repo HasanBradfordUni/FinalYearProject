@@ -47,7 +47,7 @@ CATEGORICAL_FEATURES = {"Child Gender", "Child Ethnicity", "Carer Gender", "Care
 
 # ============== Prediction Utility Functions ==============
 
-def prepare_prediction_input(form, feature_encoders):
+def prepare_prediction_input(form, feature_encoders, numeric_defaults=None):
     """
     Prepares user input from form so it matches the exact feature structure
     used during model training.
@@ -81,20 +81,27 @@ def prepare_prediction_input(form, feature_encoders):
         except Exception:
             return int(default)
 
-    child_prior_placements = parse_int(get_value("child_prior_placements", 0), 0)
+    numeric_defaults = numeric_defaults or {}
+    child_age_default = parse_int(numeric_defaults.get("child_age", 12), 12)
+    child_prior_default = parse_int(numeric_defaults.get("child_prior_placements", 1), 1)
+    missing_episodes_default = parse_int(numeric_defaults.get("missing_episodes", 1), 1)
+    sibling_group_default = max(1, parse_int(numeric_defaults.get("sibling_group_size", 1), 1))
+    carer_age_default = parse_int(numeric_defaults.get("carer_age", 45), 45)
+
+    child_prior_placements = parse_int(get_value("child_prior_placements", child_prior_default), child_prior_default)
 
     # Setup a dataframe with entered/default values
     df = pd.DataFrame([
         {
-            "Child Age At Placement": parse_int(get_value("child_age", 10), 10),
+            "Child Age At Placement": parse_int(get_value("child_age", child_age_default), child_age_default),
             "Child Gender": get_value("child_gender", "Unknown"),
             "Child Ethnicity": get_value("child_ethnicity", "Unknown"),
             "Child Prior Placements": child_prior_placements,
             "Returning Child": parse_bool(get_value("returning_child", "False")),
-            "Missing Episodes": parse_int(get_value("missing_episodes", 0), 0),
-            "Sibling Group Size": parse_int(get_value("sibling_group_size", 0), 0),
+            "Missing Episodes": parse_int(get_value("missing_episodes", missing_episodes_default), missing_episodes_default),
+            "Sibling Group Size": max(1, parse_int(get_value("sibling_group_size", sibling_group_default), sibling_group_default)),
             "Placed With Siblings": parse_bool(get_value("placed_with_siblings", "False")),
-            "Carer Age": parse_int(get_value("carer_age", 45), 45),
+            "Carer Age": parse_int(get_value("carer_age", carer_age_default), carer_age_default),
             "Carer Gender": get_value("carer_gender", "Unknown"),
             "Carer Ethnicity": get_value("carer_ethnicity", "Unknown"),
             "EH involvement": parse_bool(get_value("eh_involvement", "False")),
@@ -248,6 +255,7 @@ def compare_placement_options(
     lr_model,
     feature_encoders,
     placement_encoder,
+    numeric_defaults=None,
     breakdown_model=None,
     placement_feature_names=None,
     breakdown_feature_names=None,
@@ -265,7 +273,7 @@ def compare_placement_options(
         setattr(mock_form, key, type('obj', (object,), {'data': value}))
 
     # Prepare input
-    input_data = prepare_prediction_input(mock_form, feature_encoders)
+    input_data = prepare_prediction_input(mock_form, feature_encoders, numeric_defaults=numeric_defaults)
 
     # Generate all predictions
     all_predictions = generate_predictions_list(
@@ -321,7 +329,7 @@ def process_bulk_upload(connection, csv_file, user_id):
                     'child_prior_placements': int(parse_float(row.get('Child Prior Placements'), 0)),
                     'returning_child': int(str(row.get('Returning Child', 'False')).strip().lower() in {'true', '1', 'yes'}),
                     'missing_episodes': int(parse_float(row.get('Missing Episodes'), 0)),
-                    'sibling_group_size': int(parse_float(row.get('Sibling Group Size'), 0)),
+                    'sibling_group_size': max(1, int(parse_float(row.get('Sibling Group Size'), 1))),
                     'placed_with_siblings': int(str(row.get('Placed With Siblings', 'False')).strip().lower() in {'true', '1', 'yes'}),
                     'carer_age': parse_float(row.get('Carer Age'), 45),
                     'carer_gender': row.get('Carer Gender', row.get('Carer Gender Composition', 'Unknown')),

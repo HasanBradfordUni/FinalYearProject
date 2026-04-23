@@ -9,9 +9,11 @@
 {% block content %}
     <section class="panel">
         <h1>Breakdown Analysis</h1>
-        <div class="actions-row" style="margin-bottom: 1rem;">
-            <a class="btn" href="{{ url_for('app.export_breakdown_analysis_csv') }}">Export CSV</a>
-        </div>
+        {% if not read_only %}
+            <div class="actions-row" style="margin-bottom: 1rem;">
+                <a class="btn" href="{{ url_for('app.export_breakdown_analysis_csv') }}">Export CSV</a>
+            </div>
+        {% endif %}
         <div class="table-wrap">
             <table>
                 <thead><tr><th>Placement Type</th><th>Total</th><th>Breakdowns</th><th>Rate</th></tr></thead>
@@ -58,18 +60,20 @@
         </div>
     </section>
 
-    <section class="panel">
-        <h2 class="section-heading">Recommendations</h2>
-        <div class="card-grid">
-            {% for rec in recommendations %}
-                <article class="result-card severity-{{ rec.severity }}">
-                    <h3>{{ rec.placement_type }}</h3>
-                    <p>{{ rec.message }}</p>
-                </article>
-            {% else %}
-                <p class="muted">No recommendations generated yet.</p>
-            {% endfor %}
-        </div>
-    </section>
+    {% if not read_only %}
+        <section class="panel">
+            <h2 class="section-heading">Recommendations</h2>
+            <div class="card-grid">
+                {% for rec in recommendations %}
+                    <article class="result-card severity-{{ rec.severity }}">
+                        <h3>{{ rec.placement_type }}</h3>
+                        <p>{{ rec.message }}</p>
+                    </article>
+                {% else %}
+                    <p class="muted">No recommendations generated yet.</p>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
 {% endblock %}
 

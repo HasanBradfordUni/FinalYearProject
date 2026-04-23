@@ -30,7 +30,7 @@
                         <tr>
                             <td>{{ user.username }}</td>
                             <td>{{ user.email }}</td>
-                            <td>{{ user.role|capitalize }}</td>
+                            <td>{{ user.role|replace('_', ' ')|title }}</td>
                             <td>{{ 'Active' if user.is_active else 'Inactive' }}</td>
                             <td>{{ user.created_at }}</td>
                             <td class="actions-inline">

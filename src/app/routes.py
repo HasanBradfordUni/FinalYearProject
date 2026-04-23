@@ -14,7 +14,7 @@ from .models import (create_connection, create_tables, authenticate_user,
                      get_system_settings, update_system_settings, generate_breakdown_recommendations,
                      get_prediction_by_id, get_comparison_by_id, get_breakdown_patterns_by_duration,
                      get_user_by_identifier, verify_user_password, update_user_password,
-                     issue_temporary_password)
+                     issue_temporary_password, get_prediction_numeric_averages)
 from .utils import (prepare_prediction_input, generate_predictions_list,
                     extract_profile_from_form, compare_placement_options,
                     process_bulk_upload)
@@ -27,6 +27,7 @@ import secrets
 from io import StringIO
 from email.message import EmailMessage
 from . import train_models
+from .permissions import has_permission, normalize_role
 
 # Calculate template folder relative to routes.py
 template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
@@ -120,8 +121,8 @@ except Exception as e:
         "metadata": {},
     }
 
-# Role-based access control decorator
-def role_required(*roles):
+# Permission-based access control decorator
+def permission_required(permission):
     def decorator(f):
         @wraps(f)
         @login_required
@@ -129,11 +130,29 @@ def role_required(*roles):
             if not current_user.is_authenticated:
                 flash('Please log in to access this page.', 'warning')
                 return redirect(url_for('app.login'))
-            if current_user.role not in roles:
+            if not has_permission(current_user.role, permission):
                 flash('You do not have permission to access this page.', 'danger')
                 return redirect(url_for('app.dashboard'))
             return f(*args, **kwargs)
         return decorated_function
+    return decorator
+
+
+def role_required(*roles):
+    """Backward-compatible wrapper for legacy role checks."""
+    allowed = {normalize_role(role) for role in roles}
+
+    def decorator(f):
+        @wraps(f)
+        @login_required
+        def decorated_function(*args, **kwargs):
+            if normalize_role(current_user.role) not in allowed:
+                flash('You do not have permission to access this page.', 'danger')
+                return redirect(url_for('app.dashboard'))
+            return f(*args, **kwargs)
+
+        return decorated_function
+
     return decorator
 
 
@@ -258,25 +277,28 @@ def force_password_reset():
 @login_required
 def dashboard():
     """Main dashboard - role-based view"""
-    if current_user.role == 'admin':
+    if has_permission(current_user.role, 'access_admin_dashboard'):
         return redirect(url_for('app.admin_dashboard'))
-    elif current_user.role == 'manager':
+    if has_permission(current_user.role, 'access_manager_dashboard'):
         return redirect(url_for('app.manager_dashboard'))
-    else:  # staff role
-        return redirect(url_for('app.staff_dashboard'))
+    return redirect(url_for('app.staff_dashboard'))
 
 @app.route('/staff-dashboard')
-@role_required('staff', 'manager', 'admin')
+@permission_required('access_staff_dashboard')
 def staff_dashboard():
     """Staff dashboard - view placements and make predictions"""
-    recent_placements = get_recent_placements(connection, limit=10)
+    uploaded_by = None if has_permission(current_user.role, 'view_all_placements') else current_user.id
+    recent_placements = get_recent_placements(connection, limit=10, uploaded_by=uploaded_by)
+    # Backward compatibility: older records may not have uploader metadata.
+    if not recent_placements and uploaded_by is not None:
+        recent_placements = get_recent_placements(connection, limit=10)
     stats = get_placement_statistics(connection)
     return render_template('staff_dashboard.html',
                          recent_placements=recent_placements,
                          stats=stats)
 
 @app.route('/manager-dashboard')
-@role_required('manager', 'admin')
+@permission_required('access_manager_dashboard')
 def manager_dashboard():
     """Manager dashboard - view analytics and breakdown patterns"""
     stats = get_placement_statistics(connection)
@@ -291,7 +313,7 @@ def manager_dashboard():
                          stability_trends=stability_trends)
 
 @app.route('/admin-dashboard')
-@role_required('admin')
+@permission_required('access_admin_dashboard')
 def admin_dashboard():
     """Admin dashboard - manage users and system configuration"""
     users = get_all_users(connection)
@@ -306,7 +328,7 @@ def admin_dashboard():
 # ============== Placement Data Routes ==============
 
 @app.route('/upload-placement', methods=['GET', 'POST'])
-@role_required('staff', 'manager', 'admin')
+@permission_required('upload_placements')
 def upload_placement():
     """Upload individual placement record"""
     form = PlacementUploadForm()
@@ -331,16 +353,24 @@ def upload_placement():
             'uploaded_by': current_user.id
         }
 
-        placement_id = add_placement_record(connection, placement_data)
-        log_audit(connection, current_user.id, 'placement_upload', placement_id)
-
-        flash('Placement record uploaded successfully!', 'success')
-        return redirect(url_for('app.view_placement', placement_id=placement_id))
+        try:
+            placement_id = add_placement_record(connection, placement_data)
+            if not placement_id:
+                raise ValueError('No placement identifier returned from storage.')
+            log_audit(connection, current_user.id, 'placement_upload', placement_id)
+            flash('Placement record uploaded successfully!', 'success')
+            return redirect(url_for('app.view_placement', placement_id=placement_id))
+        except Exception as exc:
+            flash(f'Could not upload placement record: {exc}', 'danger')
+    elif request.method == 'POST':
+        invalid_fields = [name for name, errors in form.errors.items() if errors]
+        if invalid_fields:
+            flash(f"Please fix the highlighted fields: {', '.join(invalid_fields)}", 'warning')
 
     return render_template('upload_placement.html', form=form)
 
 @app.route('/upload-bulk', methods=['GET', 'POST'])
-@role_required('staff', 'manager', 'admin')
+@permission_required('upload_placements')
 def upload_bulk():
     """Bulk upload placement data from CSV"""
     form = BulkUploadForm()
@@ -358,10 +388,13 @@ def upload_bulk():
     return render_template('bulk_upload.html', form=form)
 
 @app.route('/placement/<int:placement_id>')
-@login_required
+@permission_required('view_placement_record')
 def view_placement(placement_id):
     """View individual placement details"""
-    placement = get_placement_by_id(connection, placement_id)
+    uploaded_by = None if has_permission(current_user.role, 'view_all_placements') else current_user.id
+    placement = get_placement_by_id(connection, placement_id, uploaded_by=uploaded_by)
+    if not placement and uploaded_by is not None:
+        placement = get_placement_by_id(connection, placement_id)
     if not placement:
         flash('Placement not found.', 'warning')
         return redirect(url_for('app.dashboard'))
@@ -371,12 +404,17 @@ def view_placement(placement_id):
 # ============== Prediction Routes ==============
 
 @app.route('/predict', methods=['GET', 'POST'])
-@role_required('staff', 'manager', 'admin')
+@permission_required('predict')
 def predict():
     """Generate AI-powered placement stability prediction"""
     form = PredictionForm()
     if form.validate_on_submit():
-        input_data = prepare_prediction_input(form, model_assets["feature_encoders"])
+        numeric_defaults = get_prediction_numeric_averages(connection)
+        input_data = prepare_prediction_input(
+            form,
+            model_assets["feature_encoders"],
+            numeric_defaults=numeric_defaults,
+        )
         predictions = generate_predictions_list(
             input_data,
             model_assets["rf_model"],
@@ -411,7 +449,7 @@ def predict():
     return render_template('index.html', form=form)
 
 @app.route('/compare', methods=['GET', 'POST'])
-@role_required('staff', 'manager', 'admin')
+@permission_required('compare')
 def compare():
     """Compare multiple placement options"""
     form = ComparisonForm()
@@ -422,12 +460,14 @@ def compare():
             return render_template('compare.html', form=form)
 
         profile_data = extract_profile_from_form(form)
+        numeric_defaults = get_prediction_numeric_averages(connection)
 
         # Generate predictions for each selected placement type
         comparisons = compare_placement_options(
             profile_data, selected_types,
             model_assets["rf_model"], model_assets["rf_reg_model"] or model_assets["lr_model"],
             model_assets["feature_encoders"], model_assets["placement_encoder"],
+            numeric_defaults=numeric_defaults,
             breakdown_model=model_assets["breakdown_model"],
             placement_feature_names=model_assets["metadata"].get("classification_features"),
             breakdown_feature_names=model_assets["metadata"].get("breakdown_features"),
@@ -447,7 +487,7 @@ def compare():
 # ============== Analysis Routes ==============
 
 @app.route('/breakdown-analysis')
-@role_required('manager', 'admin')
+@permission_required('breakdown_full')
 def breakdown_analysis():
     """Analyze placement breakdown patterns"""
     breakdown_data = analyze_breakdown_patterns(connection)
@@ -459,11 +499,30 @@ def breakdown_analysis():
                          breakdown_data=breakdown_data,
                          duration_band_patterns=duration_band_patterns,
                          risk_factors=risk_factors,
-                         recommendations=recommendations)
+                         recommendations=recommendations,
+                         read_only=False)
+
+
+@app.route('/breakdown-analysis/staff')
+@permission_required('breakdown_read')
+def breakdown_analysis_staff():
+    """Read-only breakdown analysis view for operational users."""
+    breakdown_data = analyze_breakdown_patterns(connection)
+    duration_band_patterns = get_breakdown_patterns_by_duration(connection)
+    risk_factors = identify_risk_factors(connection)
+
+    return render_template(
+        'breakdown_analysis.html',
+        breakdown_data=breakdown_data,
+        duration_band_patterns=duration_band_patterns,
+        risk_factors=risk_factors,
+        recommendations=[],
+        read_only=True,
+    )
 
 
 @app.route('/admin/retrain-models', methods=['POST'])
-@role_required('admin')
+@permission_required('admin_manage_system')
 def retrain_models():
     """Retrain all models from the latest uploaded dataset and reload in-memory artifacts."""
     global model_assets
@@ -478,7 +537,7 @@ def retrain_models():
 
 
 @app.route('/export/prediction/<int:prediction_id>.csv')
-@role_required('staff', 'manager', 'admin')
+@permission_required('export_ai_outputs')
 def export_prediction_csv(prediction_id):
     prediction = get_prediction_by_id(connection, prediction_id)
     if not prediction:
@@ -519,7 +578,7 @@ def export_prediction_csv(prediction_id):
 
 
 @app.route('/export/comparison/<int:comparison_id>.csv')
-@role_required('staff', 'manager', 'admin')
+@permission_required('export_ai_outputs')
 def export_comparison_csv(comparison_id):
     comparison = get_comparison_by_id(connection, comparison_id)
     if not comparison:
@@ -550,7 +609,7 @@ def export_comparison_csv(comparison_id):
 
 
 @app.route('/export/breakdown-analysis.csv')
-@role_required('manager', 'admin')
+@permission_required('breakdown_export')
 def export_breakdown_analysis_csv():
     output = StringIO()
     writer = csv.writer(output)
@@ -571,7 +630,7 @@ def export_breakdown_analysis_csv():
     )
 
 @app.route('/stability-trends')
-@role_required('manager', 'admin')
+@permission_required('stability_trends')
 def stability_trends():
     """View placement stability trends over time"""
     trends = get_stability_trends(connection)
@@ -584,14 +643,14 @@ def stability_trends():
 # ============== User Management Routes ==============
 
 @app.route('/users')
-@role_required('admin')
+@permission_required('admin_manage_system')
 def manage_users():
     """User management page"""
     users = get_all_users(connection)
     return render_template('manage_users.html', users=users)
 
 @app.route('/users/add', methods=['GET', 'POST'])
-@role_required('admin')
+@permission_required('admin_manage_system')
 def add_user():
     """Add new user"""
     form = UserForm()
@@ -606,7 +665,7 @@ def add_user():
     return render_template('add_user.html', form=form)
 
 @app.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
-@role_required('admin')
+@permission_required('admin_manage_system')
 def edit_user(user_id):
     """Edit existing user"""
     user = get_user_by_id(connection, user_id)
@@ -625,7 +684,7 @@ def edit_user(user_id):
     return render_template('edit_user.html', form=form, user=user)
 
 @app.route('/users/<int:user_id>/delete', methods=['POST'])
-@role_required('admin')
+@permission_required('admin_manage_system')
 def delete_user(user_id):
     """Delete user"""
     if user_id == current_user.id:
@@ -641,14 +700,14 @@ def delete_user(user_id):
 # ============== System Configuration Routes ==============
 
 @app.route('/settings')
-@role_required('admin')
+@permission_required('admin_manage_system')
 def system_settings():
     """System configuration page"""
     settings = get_system_settings(connection)
     return render_template('settings.html', settings=settings)
 
 @app.route('/settings/update', methods=['POST'])
-@role_required('admin')
+@permission_required('admin_manage_system')
 def update_settings():
     """Update system settings"""
     settings_payload = {}
@@ -670,7 +729,7 @@ def update_settings():
     return redirect(url_for('app.system_settings'))
 
 @app.route('/audit-logs')
-@role_required('admin')
+@permission_required('view_audit_logs')
 def audit_logs():
     """View audit logs"""
     page = request.args.get('page', 1, type=int)

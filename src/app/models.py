@@ -25,7 +25,7 @@ def create_tables(connection):
         username TEXT UNIQUE NOT NULL,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'staff',
+        role TEXT NOT NULL DEFAULT 'placement_officer',
         is_active INTEGER DEFAULT 1,
         must_reset_password INTEGER DEFAULT 0,
         temp_password_issued_at TIMESTAMP,
@@ -45,7 +45,7 @@ def create_tables(connection):
         child_prior_placements INTEGER DEFAULT 0,
         returning_child INTEGER DEFAULT 0,
         missing_episodes INTEGER DEFAULT 0,
-        sibling_group_size INTEGER DEFAULT 0,
+        sibling_group_size INTEGER DEFAULT 1,
         placed_with_siblings INTEGER DEFAULT 0,
         carer_age REAL,
         carer_gender TEXT,
@@ -184,7 +184,7 @@ class User(UserMixin):
     def is_active(self):
         return self._is_active
 
-def create_user(connection, username, email, password, role='staff'):
+def create_user(connection, username, email, password, role='placement_officer'):
     """Create a new user"""
     password_hash = generate_password_hash(password)
     query = """
@@ -329,7 +329,7 @@ def add_placement_record(connection, placement_data):
         placement_data.get('child_prior_placements', 0),
         placement_data.get('returning_child', 0),
         placement_data.get('missing_episodes', 0),
-        placement_data.get('sibling_group_size', 0),
+        max(1, int(placement_data.get('sibling_group_size', 1) or 1)),
         placement_data.get('placed_with_siblings', 0),
         placement_data['carer_age'],
         placement_data['carer_gender'],
@@ -349,18 +349,28 @@ def add_placement_record(connection, placement_data):
     connection.commit()
     return cursor.lastrowid
 
-def get_placement_by_id(connection, placement_id):
+def get_placement_by_id(connection, placement_id, uploaded_by=None):
     """Get placement by ID"""
     query = "SELECT * FROM placements WHERE id = ?"
+    params = [placement_id]
+    if uploaded_by is not None:
+        query += " AND uploaded_by = ?"
+        params.append(uploaded_by)
     cursor = connection.cursor()
-    cursor.execute(query, (placement_id,))
+    cursor.execute(query, tuple(params))
     return cursor.fetchone()
 
-def get_recent_placements(connection, limit=10):
+def get_recent_placements(connection, limit=10, uploaded_by=None):
     """Get recent placement records"""
-    query = "SELECT * FROM placements ORDER BY created_at DESC LIMIT ?"
+    query = "SELECT * FROM placements"
+    params = []
+    if uploaded_by is not None:
+        query += " WHERE uploaded_by = ?"
+        params.append(uploaded_by)
+    query += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
     cursor = connection.cursor()
-    cursor.execute(query, (limit,))
+    cursor.execute(query, tuple(params))
     return cursor.fetchall()
 
 def get_placement_statistics(connection):
@@ -376,6 +386,50 @@ def get_placement_statistics(connection):
     cursor = connection.cursor()
     cursor.execute(query)
     return cursor.fetchone()
+
+
+def get_prediction_numeric_averages(connection):
+    """Get numeric fallback values for prediction fields from current placement data."""
+    query = """
+    SELECT
+        AVG(child_age) AS child_age,
+        AVG(child_prior_placements) AS child_prior_placements,
+        AVG(missing_episodes) AS missing_episodes,
+        AVG(sibling_group_size) AS sibling_group_size,
+        AVG(carer_age) AS carer_age
+    FROM placements
+    """
+    cursor = connection.cursor()
+    cursor.execute(query)
+    row = cursor.fetchone()
+
+    defaults = {
+        'child_age': 12,
+        'child_prior_placements': 1,
+        'missing_episodes': 1,
+        'sibling_group_size': 1,
+        'carer_age': 45,
+    }
+    if not row:
+        return defaults
+
+    for field_name, fallback in defaults.items():
+        value = row[field_name]
+        if value is None:
+            continue
+        rounded = int(round(float(value)))
+        if field_name == 'child_age':
+            defaults[field_name] = min(17, max(0, rounded))
+        elif field_name == 'child_prior_placements':
+            defaults[field_name] = min(4, max(0, rounded))
+        elif field_name == 'missing_episodes':
+            defaults[field_name] = min(7, max(0, rounded))
+        elif field_name == 'sibling_group_size':
+            defaults[field_name] = min(5, max(1, rounded))
+        elif field_name == 'carer_age':
+            defaults[field_name] = min(75, max(25, rounded))
+
+    return defaults
 
 # ============== Prediction Functions ==============
 

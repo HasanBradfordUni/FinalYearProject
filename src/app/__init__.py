@@ -3,6 +3,7 @@ from flask_wtf import CSRFProtect
 from flask_login import LoginManager
 import os
 from datetime import timedelta
+from .permissions import has_permission, normalize_role
 
 csrf = CSRFProtect()
 login_manager = LoginManager()
@@ -43,6 +44,13 @@ def create_app():
     # Register blueprints
     from .routes import app as routes_blueprint
     app.register_blueprint(routes_blueprint)
+
+    @app.context_processor
+    def inject_permissions():
+        return {
+            "can": lambda user, permission: bool(user and getattr(user, "is_authenticated", False) and has_permission(user.role, permission)),
+            "normalized_role": lambda user: normalize_role(user.role) if user and getattr(user, "is_authenticated", False) else None,
+        }
 
     return app
 

@@ -68,7 +68,7 @@ def test_userform_invalid_email_fails_expected_behavior():
                     "email": "bad-email",
                     "password": "Password123",
                     "confirm_password": "Password123",
-                    "role": "staff",
+                    "role": "placement_officer",
                 }
             )
         )
@@ -78,7 +78,7 @@ def test_userform_invalid_email_fails_expected_behavior():
 def test_usereditform_valid_data_passes_expected_behavior():
     app = _app_ctx()
     with app.test_request_context(method="POST"):
-        form = UserEditForm(formdata=MultiDict({"username": "tester", "email": "t@example.com", "role": "manager", "is_active": "y"}))
+        form = UserEditForm(formdata=MultiDict({"username": "tester", "email": "t@example.com", "role": "service_manager", "is_active": "y"}))
         assert form.validate() is True
 
 

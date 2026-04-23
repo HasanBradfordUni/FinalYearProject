@@ -34,7 +34,7 @@ def create_admin():
             username='HasanAk',
             email='akhtar.hasan@bradfordcft.org.uk',
             password='adminThis123!!',  # Change this after first login!
-            role='admin'
+            role='it_app_support'
         )
 
         print("\n" + "="*50)
@@ -44,7 +44,7 @@ def create_admin():
         print("Username: AkhtarHa3")
         print("Email: hasan.akhtar@bradfordcft.org.uk")
         print("Password: Admin123")
-        print("Role: admin")
+        print("Role: it_app_support")
         print("="*50)
         print("\n⚠️  IMPORTANT: Change the password after first login!")
 
