@@ -15,6 +15,8 @@ ROLE_ALIASES = {
     "manager": "service_manager",
     "staff": "placement_officer",
     "data_analytics_team": "data_performance_team",
+    "data_and_analytics_team": "data_performance_team",
+    "data_analytics": "data_performance_team",
     "data_and_performance_team": "data_performance_team",
     "data_analyst": "data_performance_team",
     "social_worker": "social_work_team",
@@ -42,6 +44,12 @@ PERMISSIONS = {
     },
     "access_admin_dashboard": ADMIN_ROLES,
     "upload_placements": {
+        "placement_officer",
+        "residential_placement_lead",
+        "it_app_support",
+        "data_performance_team",
+    },
+    "update_placement_outcome": {
         "placement_officer",
         "residential_placement_lead",
         "it_app_support",
@@ -110,6 +118,11 @@ PERMISSIONS = {
         "data_performance_team",
     },
     "admin_manage_system": ADMIN_ROLES,
+    "manage_model_retraining": {
+        "placement_officer",
+        "it_app_support",
+        "data_performance_team",
+    },
     "view_audit_logs": {
         "service_manager",
         "it_app_support",

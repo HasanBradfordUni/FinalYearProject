@@ -238,7 +238,8 @@ def test_predict_and_compare_routes_expected_behavior(app_client, monkeypatch):
     _, client, login_as = app_client
     login_as("staff", user_id=30)
     monkeypatch.setattr(routes, "prepare_prediction_input", lambda *_args, **_kwargs: [[1] * 15])
-    monkeypatch.setattr(routes, "generate_predictions_list", lambda *_args, **_kwargs: [{"type": "Kinship", "duration": 10, "stability": 50, "breakdown_likelihood": 20, "net_stability": 30}])
+    monkeypatch.setattr(routes, "generate_predictions_list", lambda *_args, **_kwargs: [{"type": "Kinship", "duration": 10, "stability": 50, "breakdown_likelihood": 20}])
+    monkeypatch.setattr(routes, "generate_explainability_summary", lambda *_args, **_kwargs: "Test explainability summary")
     monkeypatch.setattr(routes, "save_prediction", lambda *_args, **_kwargs: 5)
     monkeypatch.setattr(routes, "log_audit", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(routes, "save_comparison", lambda *_args, **_kwargs: 9)
@@ -288,7 +289,7 @@ def test_export_routes_return_csv_expected_behavior(app_client, monkeypatch):
             "predicted_duration": 100,
             "stability_score": 70,
             "breakdown_likelihood": 20,
-            "prediction_payload": json.dumps([{"type": "Kinship", "duration": 100, "stability": 70, "breakdown_likelihood": 20, "net_stability": 50}]),
+            "prediction_payload": json.dumps([{"type": "Kinship", "duration": 100, "stability": 70, "breakdown_likelihood": 20}]),
         },
     )
     monkeypatch.setattr(
@@ -297,7 +298,7 @@ def test_export_routes_return_csv_expected_behavior(app_client, monkeypatch):
         lambda *_args, **_kwargs: {
             "id": 2,
             "created_at": "2026-01-01",
-            "comparison_results": json.dumps([{"type": "Kinship", "duration": 10, "stability": 40, "breakdown_likelihood": 20, "net_stability": 20}]),
+            "comparison_results": json.dumps([{"type": "Kinship", "duration": 10, "stability": 40, "breakdown_likelihood": 20}]),
         },
     )
     monkeypatch.setattr(routes, "analyze_breakdown_patterns", lambda *_args, **_kwargs: [{"placement_type": "Kinship", "total": 1, "breakdowns": 0, "breakdown_rate": 0}])

@@ -1,8 +1,10 @@
 import json
 import os
 from pathlib import Path
+import re
 
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import RandomForestRegressor
@@ -38,6 +40,32 @@ NUMERIC_COLUMNS = [
 PLACEMENT_COLUMN = "Placement Type"
 REGRESSION_TARGET = "Days Placed"
 BREAKDOWN_THRESHOLD_DAYS = 365
+REQUIRED_COLUMNS = FEATURE_COLUMNS + [PLACEMENT_COLUMN, REGRESSION_TARGET]
+DEFAULT_CRITICAL_FIELDS = [PLACEMENT_COLUMN, REGRESSION_TARGET]
+DEFAULT_GENDER_VALUES = ["Non binary", "Male", "Trans Female", "Female", "Trans Male"]
+DEFAULT_ETHNICITY_VALUES = [
+    "Asian/British Asian - Chinese",
+    "Asian/British Asian - Other",
+    "Black/Black British - Other",
+    "Gypsy / Roma",
+    "Black/Black British - African",
+    "White - British",
+    "White - Irish",
+    "Asian/British Asian - Indian",
+    "White - Other",
+    "Black/Black British - Caribbean",
+    "Asian/British Asian - Pakistani",
+    "Asian/British Asian - Bangladeshi",
+    "Mixed - White/Black African",
+    "Traveller of Irish Heritage",
+    "Mixed - White/Asian",
+    "Mixed - Other",
+    "Traveller - Other",
+    "White - Central European",
+    "Mixed - White/Black Caribbean",
+    "Dual Heritage - Black/White",
+    "White - Eastern European",
+]
 
 def _resolve_dataset_path():
     # train_models.py lives in src/app, so dataset is in src/app/static
@@ -56,11 +84,154 @@ def _to_bool_int(series):
         .astype(int)
     )
 
-def load_data(file_path):
-    data = pd.read_csv(file_path, encoding="utf-8")
 
-    required_columns = FEATURE_COLUMNS + [PLACEMENT_COLUMN, REGRESSION_TARGET]
-    missing = [col for col in required_columns if col not in data.columns]
+def _normalize_column_name(column_name):
+    return re.sub(r"[^a-z0-9]+", "", str(column_name).strip().lower())
+
+
+def _scalar_default_value(column_name, value):
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        text = value.strip()
+        if text == "":
+            return None
+    else:
+        text = value
+
+    if column_name in BOOLEAN_COLUMNS:
+        value_text = str(text).strip().lower()
+        if value_text in {"true", "1", "yes", "y"}:
+            return 1
+        if value_text in {"false", "0", "no", "n"}:
+            return 0
+        return 0
+
+    if column_name in NUMERIC_COLUMNS or column_name == REGRESSION_TARGET:
+        return pd.to_numeric([text], errors="coerce")[0]
+
+    return text
+
+
+def _random_values_for_mode(mode, count, config=None):
+    config = config or {}
+    if count <= 0:
+        return np.array([])
+
+    if mode == "ethnicities":
+        return np.random.choice(DEFAULT_ETHNICITY_VALUES, size=count)
+    if mode == "genders":
+        return np.random.choice(DEFAULT_GENDER_VALUES, size=count)
+    if mode == "child_ages":
+        return np.random.randint(0, 19, size=count)
+    if mode == "carer_ages":
+        return np.random.randint(25, 76, size=count)
+    if mode == "boolean":
+        return np.random.choice([1, 0], size=count)
+    if mode == "custom":
+        start = config.get("start")
+        end = config.get("end")
+        if start is None or end is None:
+            return np.array([])
+        start_value = float(start)
+        end_value = float(end)
+        if start_value > end_value:
+            return np.array([])
+        if start_value.is_integer() and end_value.is_integer():
+            return np.random.randint(int(start_value), int(end_value) + 1, size=count)
+        return np.random.uniform(start_value, end_value, size=count)
+
+    return np.array([])
+
+
+def _build_default_values(column_name, default_config, count):
+    if count <= 0:
+        return None
+
+    if isinstance(default_config, dict):
+        mode = str(default_config.get("mode", "")).strip().lower()
+        random_values = _random_values_for_mode(mode, count, config=default_config)
+        if random_values.size == 0:
+            return None
+        return random_values
+
+    scalar_value = _scalar_default_value(column_name, default_config)
+    if scalar_value is None:
+        return None
+    return np.array([scalar_value] * count)
+
+
+def _apply_column_mapping(
+    data,
+    column_mapping=None,
+    missing_defaults=None,
+    critical_fields=None,
+    exclude_missing_critical=False,
+):
+    column_mapping = column_mapping or {}
+    missing_defaults = missing_defaults or {}
+    critical_fields = critical_fields or DEFAULT_CRITICAL_FIELDS
+
+    transformed = data.copy()
+    for target in REQUIRED_COLUMNS:
+        source = column_mapping.get(target)
+        if source:
+            if source not in transformed.columns:
+                raise ValueError(f"Mapped source column '{source}' for '{target}' was not found in uploaded CSV.")
+            transformed[target] = transformed[source]
+            continue
+
+        if target not in transformed.columns:
+            transformed[target] = pd.NA
+
+    if exclude_missing_critical:
+        critical_missing_mask = pd.Series(False, index=transformed.index)
+        for field in critical_fields:
+            col_as_text = transformed[field].astype(str).str.strip()
+            missing_mask = transformed[field].isna() | col_as_text.eq("") | col_as_text.str.lower().eq("none")
+            critical_missing_mask = critical_missing_mask | missing_mask
+        transformed = transformed.loc[~critical_missing_mask].copy()
+
+    for target in REQUIRED_COLUMNS:
+        col_as_text = transformed[target].astype(str).str.strip()
+        missing_mask = transformed[target].isna() | col_as_text.eq("") | col_as_text.str.lower().eq("none")
+        default_values = _build_default_values(target, missing_defaults.get(target), int(missing_mask.sum()))
+        if default_values is None:
+            continue
+        transformed.loc[missing_mask, target] = default_values
+
+    unresolved_critical = []
+    for field in critical_fields:
+        col_as_text = transformed[field].astype(str).str.strip()
+        missing_mask = transformed[field].isna() | col_as_text.eq("") | col_as_text.str.lower().eq("none")
+        if transformed.empty or missing_mask.any():
+            unresolved_critical.append(field)
+
+    if unresolved_critical:
+        raise ValueError(
+            f"Critical fields still contain missing values after mapping/default handling: {unresolved_critical}"
+        )
+
+    return transformed
+
+def load_data(
+    file_path,
+    column_mapping=None,
+    missing_defaults=None,
+    critical_fields=None,
+    exclude_missing_critical=False,
+):
+    data = pd.read_csv(file_path, encoding="utf-8")
+    data = _apply_column_mapping(
+        data,
+        column_mapping=column_mapping,
+        missing_defaults=missing_defaults,
+        critical_fields=critical_fields,
+        exclude_missing_critical=exclude_missing_critical,
+    )
+
+    missing = [col for col in REQUIRED_COLUMNS if col not in data.columns]
     if missing:
         raise ValueError(f"Dataset is missing required columns: {missing}")
 
@@ -186,8 +357,14 @@ def _save_artifacts(
         json.dump(metadata, fh, indent=2)
 
 
-def main():
-    dataset_path = _resolve_dataset_path()
+def main(
+    dataset_path=None,
+    column_mapping=None,
+    missing_defaults=None,
+    critical_fields=None,
+    exclude_missing_critical=False,
+):
+    dataset_path = Path(dataset_path) if dataset_path else _resolve_dataset_path()
     (
         x_reg,
         x_placement_class,
@@ -197,7 +374,13 @@ def main():
         y_reg,
         encoders,
         placement_encoder,
-    ) = load_data(dataset_path)
+    ) = load_data(
+        dataset_path,
+        column_mapping=column_mapping,
+        missing_defaults=missing_defaults,
+        critical_fields=critical_fields,
+        exclude_missing_critical=exclude_missing_critical,
+    )
 
     lr_model = run_linear_regression(x_reg, y_reg)
     rf_reg_model = run_random_forest_regressor(x_reg, y_reg)

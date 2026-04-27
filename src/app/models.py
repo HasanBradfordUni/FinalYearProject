@@ -139,6 +139,10 @@ def create_tables(connection):
     _ensure_column(connection, "placements", "eh_involvement", "INTEGER DEFAULT 0")
     _ensure_column(connection, "placements", "yot_involvement", "INTEGER DEFAULT 0")
     _ensure_column(connection, "placements", "placement_sequence_number", "INTEGER DEFAULT 1")
+    _ensure_column(connection, "placements", "placement_end_reason", "TEXT")
+    _ensure_column(connection, "placements", "breakdown_flag", "INTEGER DEFAULT 0")
+    _ensure_column(connection, "placements", "days_placement_lasted", "INTEGER")
+    _ensure_column(connection, "placements", "outcome_notes", "TEXT")
     _ensure_column(connection, "predictions", "breakdown_likelihood", "REAL DEFAULT 0")
     _ensure_column(connection, "predictions", "prediction_payload", "TEXT")
     _ensure_column(connection, "users", "must_reset_password", "INTEGER DEFAULT 0")
@@ -349,6 +353,43 @@ def add_placement_record(connection, placement_data):
     connection.commit()
     return cursor.lastrowid
 
+
+def update_placement_outcome(connection, placement_id, end_reason, days_lasted, notes, uploaded_by=None):
+    """Update closure outcome details for an existing placement."""
+    if uploaded_by is not None:
+        existing = get_placement_by_id(connection, placement_id, uploaded_by=uploaded_by)
+    else:
+        existing = get_placement_by_id(connection, placement_id)
+    if not existing:
+        return False
+
+    breakdown_flag = int(str(end_reason).strip().lower() == "breakdown")
+    query = """
+    UPDATE placements
+    SET placement_end_reason = ?,
+        breakdown_flag = ?,
+        breakdown_occurred = ?,
+        days_placement_lasted = ?,
+        placement_duration = ?,
+        outcome_notes = ?
+    WHERE id = ?
+    """
+    cursor = connection.cursor()
+    cursor.execute(
+        query,
+        (
+            end_reason,
+            breakdown_flag,
+            breakdown_flag,
+            days_lasted,
+            days_lasted,
+            notes,
+            placement_id,
+        ),
+    )
+    connection.commit()
+    return cursor.rowcount > 0
+
 def get_placement_by_id(connection, placement_id, uploaded_by=None):
     """Get placement by ID"""
     query = "SELECT * FROM placements WHERE id = ?"
@@ -378,10 +419,11 @@ def get_placement_statistics(connection):
     query = """
     SELECT 
         COUNT(*) as total_placements,
-        SUM(breakdown_occurred) as total_breakdowns,
-        AVG(placement_duration) as avg_duration,
+        SUM(COALESCE(breakdown_flag, breakdown_occurred, 0)) as total_breakdowns,
+        AVG(COALESCE(days_placement_lasted, placement_duration)) as avg_duration,
         COUNT(DISTINCT placement_type) as placement_types
     FROM placements
+    WHERE uploaded_by IS NOT NULL
     """
     cursor = connection.cursor()
     cursor.execute(query)
@@ -496,9 +538,10 @@ def analyze_breakdown_patterns(connection):
     SELECT 
         placement_type,
         COUNT(*) as total,
-        SUM(breakdown_occurred) as breakdowns,
-        CAST(SUM(breakdown_occurred) AS FLOAT) / COUNT(*) * 100 as breakdown_rate
+        SUM(COALESCE(breakdown_flag, breakdown_occurred, 0)) as breakdowns,
+        CAST(SUM(COALESCE(breakdown_flag, breakdown_occurred, 0)) AS FLOAT) / COUNT(*) * 100 as breakdown_rate
     FROM placements
+    WHERE uploaded_by IS NOT NULL
     GROUP BY placement_type
     ORDER BY breakdown_rate DESC
     """
@@ -508,25 +551,34 @@ def analyze_breakdown_patterns(connection):
 
 
 def get_breakdown_patterns_by_duration(connection):
-    """Breakdown rates across duration bands (<1 year, 1-3 years, 3+ years)."""
+    """Breakdown rates across granular duration bands."""
     query = """
     SELECT
         CASE
-            WHEN placement_duration < 365 THEN '<1 year'
-            WHEN placement_duration BETWEEN 365 AND 1095 THEN '1-3 years'
-            ELSE '3+ years'
+            WHEN COALESCE(days_placement_lasted, placement_duration, 0) < 30 THEN '<1 month'
+            WHEN COALESCE(days_placement_lasted, placement_duration, 0) BETWEEN 30 AND 89 THEN '1-3 months'
+            WHEN COALESCE(days_placement_lasted, placement_duration, 0) BETWEEN 90 AND 179 THEN '3-6 months'
+            WHEN COALESCE(days_placement_lasted, placement_duration, 0) BETWEEN 180 AND 364 THEN '6 months - 1 year'
+            WHEN COALESCE(days_placement_lasted, placement_duration, 0) BETWEEN 365 AND 729 THEN '1-2 years'
+            WHEN COALESCE(days_placement_lasted, placement_duration, 0) BETWEEN 730 AND 1459 THEN '2-4 years'
+            ELSE '4+ years'
         END AS duration_band,
         COUNT(*) AS total,
-        SUM(breakdown_occurred) AS breakdowns,
+        SUM(COALESCE(breakdown_flag, breakdown_occurred, 0)) AS breakdowns,
         CASE WHEN COUNT(*) = 0 THEN 0
-             ELSE CAST(SUM(breakdown_occurred) AS FLOAT) / COUNT(*) * 100
+             ELSE CAST(SUM(COALESCE(breakdown_flag, breakdown_occurred, 0)) AS FLOAT) / COUNT(*) * 100
         END AS breakdown_rate
     FROM placements
+    WHERE uploaded_by IS NOT NULL
     GROUP BY duration_band
     ORDER BY CASE duration_band
-        WHEN '<1 year' THEN 1
-        WHEN '1-3 years' THEN 2
-        ELSE 3
+        WHEN '<1 month' THEN 1
+        WHEN '1-3 months' THEN 2
+        WHEN '3-6 months' THEN 3
+        WHEN '6 months - 1 year' THEN 4
+        WHEN '1-2 years' THEN 5
+        WHEN '2-4 years' THEN 6
+        ELSE 7
     END
     """
     cursor = connection.cursor()
@@ -539,8 +591,9 @@ def get_stability_trends(connection):
     SELECT 
         DATE(created_at) as date,
         COUNT(*) as placements,
-        SUM(breakdown_occurred) as breakdowns
+        SUM(COALESCE(breakdown_flag, breakdown_occurred, 0)) as breakdowns
     FROM placements
+    WHERE uploaded_by IS NOT NULL
     GROUP BY DATE(created_at)
     ORDER BY date DESC
     LIMIT 30
@@ -559,7 +612,8 @@ def identify_risk_factors(connection):
         AVG(child_age) as avg_child_age,
         COUNT(*) as count
     FROM placements
-    WHERE breakdown_occurred = 1
+    WHERE COALESCE(breakdown_flag, breakdown_occurred, 0) = 1
+      AND uploaded_by IS NOT NULL
     GROUP BY child_ethnicity, carer_ethnicity, placement_type
     ORDER BY count DESC
     LIMIT 10
@@ -572,10 +626,11 @@ def calculate_stability_metrics(connection):
     """Calculate various stability metrics"""
     query = """
     SELECT 
-        AVG(CASE WHEN breakdown_occurred = 0 THEN placement_duration END) as avg_stable_duration,
-        AVG(CASE WHEN breakdown_occurred = 1 THEN placement_duration END) as avg_breakdown_duration,
-        COUNT(CASE WHEN placement_duration > 365 THEN 1 END) as long_term_placements
+        AVG(CASE WHEN COALESCE(breakdown_flag, breakdown_occurred, 0) = 0 THEN COALESCE(days_placement_lasted, placement_duration) END) as avg_stable_duration,
+        AVG(CASE WHEN COALESCE(breakdown_flag, breakdown_occurred, 0) = 1 THEN COALESCE(days_placement_lasted, placement_duration) END) as avg_breakdown_duration,
+        COUNT(CASE WHEN COALESCE(days_placement_lasted, placement_duration, 0) > 365 THEN 1 END) as long_term_placements
     FROM placements
+    WHERE uploaded_by IS NOT NULL
     """
     cursor = connection.cursor()
     cursor.execute(query)

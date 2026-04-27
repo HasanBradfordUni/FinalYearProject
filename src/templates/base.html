@@ -27,10 +27,16 @@
                     {% if can(current_user, 'compare') %}
                         <a href="{{ url_for('app.compare') }}">Compare</a>
                     {% endif %}
+                    {% if can(current_user, 'update_placement_outcome') %}
+                        <a href="{{ url_for('app.update_placement_outcome') }}">Update Placement Outcome</a>
+                    {% endif %}
                     {% if can(current_user, 'breakdown_full') %}
                         <a href="{{ url_for('app.breakdown_analysis') }}">Analysis</a>
                     {% elif can(current_user, 'breakdown_read') %}
                         <a href="{{ url_for('app.breakdown_analysis_staff') }}">Analysis</a>
+                    {% endif %}
+                    {% if can(current_user, 'manage_model_retraining') %}
+                        <a href="{{ url_for('app.model_retraining') }}">Model Retraining</a>
                     {% endif %}
                     {% if can(current_user, 'admin_manage_system') %}
                         <a href="{{ url_for('app.manage_users') }}">Users</a>

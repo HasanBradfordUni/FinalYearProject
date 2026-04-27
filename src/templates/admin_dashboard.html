@@ -11,10 +11,11 @@
         <h1>Admin Dashboard</h1>
         <p class="muted">Manage users, monitor system usage, and review audit activity.</p>
 
-        <form method="POST" action="{{ url_for('app.retrain_models') }}" style="margin-bottom: 1rem;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-primary" type="submit">Retrain Models From Latest Dataset</button>
-        </form>
+        {% if can(current_user, 'manage_model_retraining') %}
+            <p style="margin-bottom: 1rem;">
+                <a class="btn btn-primary" href="{{ url_for('app.model_retraining') }}">Open Model Retraining</a>
+            </p>
+        {% endif %}
 
         <div class="stat-grid">
             <article class="stat-card">

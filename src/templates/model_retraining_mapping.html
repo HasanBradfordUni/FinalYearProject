@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Model Retraining Mapping | BCFT AI Placement Predictions System{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        <h1>CSV Field Mapping for Retraining</h1>
+        <p class="muted">Review detected fields, map CSV columns to model fields, choose defaults for unresolved fields, and configure missing-row behavior.</p>
+
+        <div class="table-wrap" style="margin-bottom: 1rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Fields</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Required model fields</td>
+                        <td>{{ required_fields|join(', ') }}</td>
+                    </tr>
+                    <tr>
+                        <td>Present in CSV</td>
+                        <td>{{ present_required|join(', ') if present_required else 'None' }}</td>
+                    </tr>
+                    <tr>
+                        <td>Missing required fields</td>
+                        <td>{{ missing_required|join(', ') if missing_required else 'None' }}</td>
+                    </tr>
+                    <tr>
+                        <td>Extra CSV fields (ignored unless mapped)</td>
+                        <td>{{ extra_fields|join(', ') if extra_fields else 'None' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <form method="POST" action="{{ url_for('app.model_retraining_mapping', dataset_token=dataset_token) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="table-wrap" style="margin-bottom: 1rem;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Required Training Field</th>
+                            <th>CSV Column Mapping</th>
+                            <th>Random Fill Strategy If Missing</th>
+                            <th>Critical</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for field in required_fields %}
+                            {% set default_cfg = suggested_default_configs.get(field, {}) %}
+                            {% set default_mode = default_cfg.get('mode', '') %}
+                            <tr>
+                                <td>{{ field }}</td>
+                                <td>
+                                    <select name="map__{{ field }}">
+                                        <option value="">-- Unmapped --</option>
+                                        {% for header in csv_headers %}
+                                            <option value="{{ header }}" {% if suggested_mapping.get(field) == header %}selected{% endif %}>{{ header }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <label for="default_mode__{{ loop.index0 }}" class="muted" style="display:block; margin-bottom: 0.35rem;">Select range</label>
+                                    <select id="default_mode__{{ loop.index0 }}" name="default_mode__{{ field }}" class="default-mode-select" data-field-index="{{ loop.index0 }}">
+                                        {% for mode_value, mode_label in default_mode_choices %}
+                                            <option value="{{ mode_value }}" {% if default_mode == mode_value %}selected{% endif %}>{{ mode_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="custom-range-inputs" data-field-index="{{ loop.index0 }}" {% if default_mode != 'custom' %}style="display:none; margin-top: 0.5rem;"{% else %}style="margin-top: 0.5rem;"{% endif %}>
+                                        <label for="default_custom_start__{{ loop.index0 }}" class="muted">Custom start</label>
+                                        <input id="default_custom_start__{{ loop.index0 }}" type="number" step="any" name="default_custom_start__{{ field }}" value="{{ default_cfg.get('start', '') }}" placeholder="Start">
+                                        <label for="default_custom_end__{{ loop.index0 }}" class="muted">Custom end</label>
+                                        <input id="default_custom_end__{{ loop.index0 }}" type="number" step="any" name="default_custom_end__{{ field }}" value="{{ default_cfg.get('end', '') }}" placeholder="End">
+                                    </div>
+                                </td>
+                                <td>{% if field in critical_fields %}Yes{% else %}No{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <label style="display: block; margin-bottom: 0.5rem;">
+                <input type="checkbox" name="exclude_missing_critical" {% if exclude_missing_critical %}checked{% endif %}>
+                Exclude rows with missing critical fields ({{ critical_fields|join(', ') }}) before retraining
+            </label>
+            <label style="display: block; margin-bottom: 1rem;">
+                <input type="checkbox" name="ignore_extra_fields" {% if ignore_extra_fields %}checked{% endif %}>
+                Ignore extra CSV fields not used by the model
+            </label>
+
+            <button class="btn btn-primary" type="submit">Apply Mapping and Retrain</button>
+            <a class="btn" href="{{ url_for('app.model_retraining') }}">Back to Upload</a>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2 class="section-heading">Current Model Artifacts</h2>
+        <p><strong>Models Path:</strong> {{ models_path or 'No model artifacts loaded.' }}</p>
+
+        {% if metadata %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metadata Key</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for key, value in metadata.items() %}
+                            <tr>
+                                <td>{{ key }}</td>
+                                <td>{{ value }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="muted">No metadata available for the currently loaded model artifacts.</p>
+        {% endif %}
+    </section>
+
+    <script>
+        (function () {
+            var selects = document.querySelectorAll('.default-mode-select');
+            Array.prototype.forEach.call(selects, function (selectEl) {
+                var index = selectEl.getAttribute('data-field-index');
+                var customContainer = document.querySelector('.custom-range-inputs[data-field-index="' + index + '"]');
+                if (!customContainer) {
+                    return;
+                }
+
+                var syncVisibility = function () {
+                    customContainer.style.display = selectEl.value === 'custom' ? 'block' : 'none';
+                };
+
+                syncVisibility();
+                selectEl.addEventListener('change', syncVisibility);
+            });
+        })();
+    </script>
+{% endblock %}
+

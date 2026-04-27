@@ -1,6 +1,7 @@
 import pandas as pd
 import csv
 from io import StringIO
+from pathlib import Path
 
 BCFT_UPLOAD_SCHEMA = [
     "Child Age At Placement",
@@ -44,6 +45,20 @@ REGRESSION_FEATURE_COLUMNS = [
 ]
 
 CATEGORICAL_FEATURES = {"Child Gender", "Child Ethnicity", "Carer Gender", "Carer Ethnicity"}
+PROFILE_TO_FEATURE = {
+    "child_age": "Child Age At Placement",
+    "child_prior_placements": "Child Prior Placements",
+    "missing_episodes": "Missing Episodes",
+    "sibling_group_size": "Sibling Group Size",
+    "carer_age": "Carer Age",
+}
+PROFILE_LABELS = {
+    "child_age": "child age",
+    "child_prior_placements": "prior placements",
+    "missing_episodes": "missing episodes",
+    "sibling_group_size": "sibling group size",
+    "carer_age": "carer age",
+}
 
 # ============== Prediction Utility Functions ==============
 
@@ -118,21 +133,96 @@ def prepare_prediction_input(form, feature_encoders, numeric_defaults=None):
 
     return df[REGRESSION_FEATURE_COLUMNS].values
 
-def _derive_explanation_factors(feature_row, feature_names, importance_values, max_items=3):
-    if feature_names is None or importance_values is None:
-        return []
+def _load_training_numeric_averages():
+    """Load training-set averages for key numeric profile features."""
+    dataset_path = Path(__file__).resolve().parent / "static" / "dataset.csv"
+    defaults = {
+        "child_age": 12,
+        "child_prior_placements": 1,
+        "missing_episodes": 1,
+        "sibling_group_size": 1,
+        "carer_age": 45,
+    }
+    if not dataset_path.exists():
+        return defaults
 
-    factors = []
-    for idx, feature_name in enumerate(feature_names):
-        if idx >= len(importance_values) or idx >= len(feature_row):
+    try:
+        frame = pd.read_csv(dataset_path)
+    except Exception:
+        return defaults
+
+    averages = defaults.copy()
+    for profile_key, feature_name in PROFILE_TO_FEATURE.items():
+        if feature_name not in frame.columns:
             continue
-        factors.append((feature_name, float(importance_values[idx]), feature_row[idx]))
+        numeric = pd.to_numeric(frame[feature_name], errors="coerce")
+        mean_value = numeric.mean()
+        if pd.isna(mean_value):
+            continue
+        averages[profile_key] = float(mean_value)
+    return averages
 
-    factors.sort(key=lambda item: item[1], reverse=True)
-    return [
-        f"{name} (importance {importance:.2f}, profile value {value})"
-        for name, importance, value in factors[:max_items]
-    ]
+
+def generate_explainability_summary(
+    user_profile,
+    predictions,
+    feature_names=None,
+    feature_importances=None,
+    training_averages=None,
+):
+    """Generate one readable explainability paragraph across all placement options."""
+    if not predictions:
+        return "The explainability engine could not generate a summary because no placement predictions were produced."
+
+    top_features_text = "child and carer profile variables"
+    if feature_names and feature_importances is not None:
+        ranked = []
+        for idx, name in enumerate(feature_names):
+            if idx >= len(feature_importances):
+                continue
+            ranked.append((name, float(feature_importances[idx])))
+        ranked.sort(key=lambda item: item[1], reverse=True)
+        top_features = [name for name, _ in ranked[:3]]
+        if top_features:
+            top_features_text = ", ".join(top_features)
+
+    averages = training_averages or _load_training_numeric_averages()
+    profile_diffs = []
+    for profile_key, label in PROFILE_LABELS.items():
+        user_value = user_profile.get(profile_key)
+        avg_value = averages.get(profile_key)
+        if user_value in (None, "", "None") or avg_value is None:
+            continue
+        try:
+            user_num = float(user_value)
+            avg_num = float(avg_value)
+        except Exception:
+            continue
+        delta = user_num - avg_num
+        if abs(delta) < 0.5:
+            continue
+        direction = "above" if delta > 0 else "below"
+        profile_diffs.append(f"{label} is {abs(delta):.1f} {direction} average")
+
+    best_option = min(predictions, key=lambda p: (p.get("breakdown_likelihood", 100), -p.get("stability", 0), -p.get("duration", 0)))
+    durations = [float(item.get("duration", 0)) for item in predictions]
+    stability_scores = [float(item.get("stability", 0)) for item in predictions]
+    breakdown_scores = [float(item.get("breakdown_likelihood", 0)) for item in predictions]
+
+    duration_span = f"{int(min(durations))}-{int(max(durations))} days" if durations else "an uncertain duration range"
+    stability_span = f"{min(stability_scores):.1f}% to {max(stability_scores):.1f}%" if stability_scores else "limited stability variation"
+    breakdown_span = f"{min(breakdown_scores):.1f}% to {max(breakdown_scores):.1f}%" if breakdown_scores else "limited breakdown variation"
+
+    comparison_sentence = ""
+    if profile_diffs:
+        comparison_sentence = " For this profile, " + "; ".join(profile_diffs[:3]) + ", which shifts the balance between placement options."
+
+    return (
+        f"Across all placement types, the model identifies {top_features_text} as the strongest contributors to estimated duration, "
+        f"stability score, and breakdown likelihood. Predicted outcomes vary from {duration_span}, with stability spanning {stability_span} "
+        f"and breakdown likelihood spanning {breakdown_span}.{comparison_sentence} "
+        f"Overall, {best_option.get('type', 'the leading option')} is preferred for this child-carer profile because it combines lower predicted breakdown risk with stronger expected stability in this context."
+    )
 
 
 def generate_predictions_list(
@@ -156,8 +246,6 @@ def generate_predictions_list(
             "duration": 0,
             "stability": 0,
             "breakdown_likelihood": 0,
-            "net_stability": 0,
-            "explanation_factors": ["Models are not loaded."],
             "message": "Models not loaded",
         }]
 
@@ -202,27 +290,11 @@ def generate_predictions_list(
             except Exception:
                 breakdown_likelihood = 50.0
 
-        explanation = _derive_explanation_factors(
-            feature_row=input_without_placement[0],
-            feature_names=placement_feature_names,
-            importance_values=getattr(rf_model, "feature_importances_", None),
-        )
-        if not explanation and breakdown_model is not None:
-            explanation = _derive_explanation_factors(
-                feature_row=input_with_placement[0],
-                feature_names=breakdown_feature_names,
-                importance_values=getattr(breakdown_model, "feature_importances_", None),
-            )
-
-        net_stability = max(0.0, stability_score - breakdown_likelihood)
-
         predictions.append({
             "type": placement_type,
             "duration": max(0, int(predicted_duration)),  # Duration in days
             "stability": round(stability_score, 1),
             "breakdown_likelihood": round(breakdown_likelihood, 1),
-            "net_stability": round(net_stability, 1),
-            "explanation_factors": explanation,
         })
 
     # Rank options by lowest breakdown risk first, then strongest stability, then duration.

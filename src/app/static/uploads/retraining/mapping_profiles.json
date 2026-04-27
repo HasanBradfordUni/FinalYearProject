@@ -1,0 +1,87 @@
+{
+  "e9a55a34c02b33bf2f886d7b25406a9f04832d717342951e67857e6989c403a2": {
+    "column_mapping": {
+      "Placement Type": "Placement Type",
+      "Days Placed": "Length of Placement - Days"
+    },
+    "missing_defaults": {
+      "Child Age At Placement": {
+        "mode": "child_ages"
+      },
+      "Child Gender": {
+        "mode": "genders"
+      },
+      "Child Ethnicity": {
+        "mode": "ethnicities"
+      },
+      "Child Prior Placements": {
+        "mode": "custom",
+        "start": 0.0,
+        "end": 5.0
+      },
+      "Returning Child": {
+        "mode": "boolean"
+      },
+      "Missing Episodes": {
+        "mode": "custom",
+        "start": 0.0,
+        "end": 3.0
+      },
+      "Sibling Group Size": {
+        "mode": "custom",
+        "start": 1.0,
+        "end": 5.0
+      },
+      "Placed With Siblings": {
+        "mode": "boolean"
+      },
+      "Carer Age": {
+        "mode": "carer_ages"
+      },
+      "Carer Gender": {
+        "mode": "genders"
+      },
+      "Carer Ethnicity": {
+        "mode": "ethnicities"
+      },
+      "EH involvement": {
+        "mode": "boolean"
+      },
+      "YOT involvement": {
+        "mode": "boolean"
+      },
+      "Placement Sequence Number": {
+        "mode": "custom",
+        "start": 1.0,
+        "end": 6.0
+      }
+    },
+    "exclude_missing_critical": true,
+    "ignore_extra_fields": true,
+    "updated_at": "2026-04-27T11:37:29.567657+00:00"
+  },
+  "1df82f495f64c38a09212b7544901200e792a6d30b2ec05130d805fc091d62a1": {
+    "column_mapping": {
+      "Child Age At Placement": "Child Age At Placement",
+      "Child Gender": "Child Gender",
+      "Child Ethnicity": "Child Ethnicity",
+      "Child Prior Placements": "Child Prior Placements",
+      "Returning Child": "Returning Child",
+      "Missing Episodes": "Missing Episodes",
+      "Sibling Group Size": "Sibling Group Size",
+      "Placed With Siblings": "Placed With Siblings",
+      "Carer Age": "Carer Age",
+      "Carer Gender": "Carer Gender",
+      "Carer Ethnicity": "Carer Ethnicity",
+      "EH involvement": "EH involvement",
+      "YOT involvement": "YOT involvement",
+      "Placement Sequence Number": "Placement Sequence Number",
+      "Placement Type": "Placement Type",
+      "Days Placed": "Days Placed"
+    },
+    "missing_defaults": {},
+    "exclude_missing_critical": false,
+    "ignore_extra_fields": true,
+    "updated_at": "2026-04-27T11:38:46.169892+00:00"
+  }
+}

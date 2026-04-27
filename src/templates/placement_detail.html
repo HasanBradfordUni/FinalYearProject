@@ -13,12 +13,17 @@
 			<div><strong>Carer gender:</strong> {{ placement.carer_gender }}</div>
 			<div><strong>Carer ethnicity:</strong> {{ placement.carer_ethnicity }}</div>
 			<div><strong>Placement type:</strong> {{ placement.placement_type }}</div>
-			<div><strong>Duration:</strong> {{ placement.placement_duration or 'N/A' }}</div>
-			<div><strong>Breakdown occurred:</strong> {{ 'Yes' if placement.breakdown_occurred else 'No' }}</div>
+			<div><strong>Duration:</strong> {{ placement.days_placement_lasted or placement.placement_duration or 'N/A' }}</div>
+			<div><strong>Placement end reason:</strong> {{ placement.placement_end_reason or 'Not set' }}</div>
+			<div><strong>Breakdown occurred:</strong> {{ 'Yes' if (placement.breakdown_flag or placement.breakdown_occurred) else 'No' }}</div>
+			<div><strong>Outcome notes:</strong> {{ placement.outcome_notes or 'N/A' }}</div>
 			<div><strong>Uploaded by:</strong> {{ placement.uploaded_by }}</div>
 			<div><strong>Created at:</strong> {{ placement.created_at }}</div>
 		</div>
 		<div class="actions-row">
+			{% if can(current_user, 'update_placement_outcome') %}
+				<a class="btn btn-primary" href="{{ url_for('app.update_placement_outcome', placement_id=placement.id) }}">Update Outcome</a>
+			{% endif %}
 			<a class="btn" href="{{ url_for('app.staff_dashboard') }}">Back to Dashboard</a>
 		</div>
 	</section>

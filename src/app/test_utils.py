@@ -43,10 +43,20 @@ def test_prepare_prediction_input_encodes_and_defaults_expected_behavior(field):
 	assert arr[0][13] == 3
 
 
-def test_derive_explanation_factors_returns_top_n_expected_behavior():
-	factors = utils._derive_explanation_factors([1, 2, 3], ["a", "b", "c"], [0.1, 0.9, 0.3], max_items=2)
-	assert len(factors) == 2
-	assert factors[0].startswith("b")
+def test_generate_explainability_summary_returns_readable_paragraph_expected_behavior():
+	summary = utils.generate_explainability_summary(
+		user_profile={"child_age": 15, "carer_age": 38, "child_prior_placements": 3},
+		predictions=[
+			{"type": "Kinship", "duration": 220, "stability": 74.0, "breakdown_likelihood": 18.0},
+			{"type": "External Fostering", "duration": 180, "stability": 62.0, "breakdown_likelihood": 29.0},
+		],
+		feature_names=["Child Age At Placement", "Placement Sequence Number", "Carer Age"],
+		feature_importances=[0.31, 0.27, 0.19],
+		training_averages={"child_age": 11.0, "carer_age": 45.0, "child_prior_placements": 1.0},
+	)
+	assert isinstance(summary, str)
+	assert "Across all placement types" in summary
+	assert "Kinship" in summary
 
 
 def test_generate_predictions_list_handles_missing_models_expected_behavior():
@@ -85,7 +95,7 @@ def test_generate_predictions_list_returns_ranked_predictions_expected_behavior(
 		breakdown_feature_names=["f1", "f2", "f3"],
 	)
 	assert len(preds) == 2
-	assert "net_stability" in preds[0]
+	assert "net_stability" not in preds[0]
 
 
 def test_extract_profile_from_form_maps_fields_expected_behavior(field):

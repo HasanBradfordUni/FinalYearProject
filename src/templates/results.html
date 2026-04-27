@@ -26,6 +26,9 @@
             <div><strong>YOT involvement:</strong> {{ yot_involvement }}</div>
         </div>
 
+        <h2 class="section-heading">Explainability Engine</h2>
+        <p>{{ explainability_summary }}</p>
+
         <h2 class="section-heading">Recommended Placement Types</h2>
         <div class="card-grid">
             {% for item in predictions %}
@@ -34,15 +37,6 @@
                     <p><strong>Estimated duration:</strong> {{ item.duration }} days</p>
                     <p><strong>Stability score:</strong> {{ item.stability }}%</p>
                     <p><strong>Breakdown likelihood:</strong> {{ item.breakdown_likelihood }}%</p>
-                    <p><strong>Net stability score:</strong> {{ item.net_stability }}%</p>
-                    {% if item.explanation_factors %}
-                        <p><strong>Key influencing factors:</strong></p>
-                        <ul>
-                            {% for factor in item.explanation_factors %}
-                                <li>{{ factor }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% endif %}
                 </article>
             {% endfor %}
         </div>

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Model Retraining | BCFT AI Placement Predictions System{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        <h1>Model Retraining</h1>
+        <p class="muted">Upload a dataset CSV to start retraining. You will then map CSV columns, set defaults for missing fields, and apply row handling options.</p>
+
+        <form method="POST" action="{{ url_for('app.model_retraining') }}" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label for="training_csv"><strong>Training CSV</strong></label>
+            <input id="training_csv" type="file" name="training_csv" accept=".csv" required>
+            <button class="btn btn-primary" type="submit">Upload CSV and Map Fields</button>
+        </form>
+    </section>
+
+
+    <section class="panel">
+        <h2 class="section-heading">Current Model Artifacts</h2>
+        <p><strong>Models Path:</strong> {{ models_path or 'No model artifacts loaded.' }}</p>
+
+        {% if metadata %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metadata Key</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for key, value in metadata.items() %}
+                            <tr>
+                                <td>{{ key }}</td>
+                                <td>{{ value }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="muted">No metadata available for the currently loaded model artifacts.</p>
+        {% endif %}
+    </section>
+{% endblock %}
+

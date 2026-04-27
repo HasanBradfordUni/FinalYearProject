@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Update Placement Outcome | BCFT AI Placement Predictions System{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        <h1>Update Placement Outcome</h1>
+        <p class="muted">Select a placement and save the closure outcome used in breakdown analytics.</p>
+
+        <form method="POST" action="{{ url_for('app.update_placement_outcome') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div style="margin-bottom: 0.9rem;">
+                <label for="placement_id"><strong>{{ form.placement_id.label.text }}</strong></label>
+                {{ form.placement_id(id='placement_id') }}
+            </div>
+
+            <div style="margin-bottom: 0.9rem;">
+                <label for="placement_end_reason"><strong>{{ form.placement_end_reason.label.text }}</strong></label>
+                {{ form.placement_end_reason(id='placement_end_reason') }}
+            </div>
+
+            <div style="margin-bottom: 0.9rem;">
+                <label for="days_placement_lasted"><strong>{{ form.days_placement_lasted.label.text }}</strong></label>
+                {{ form.days_placement_lasted(id='days_placement_lasted') }}
+            </div>
+
+            <div style="margin-bottom: 0.9rem;">
+                <label for="outcome_notes"><strong>{{ form.outcome_notes.label.text }}</strong></label>
+                {{ form.outcome_notes(id='outcome_notes', rows='4', placeholder='Optional context for this outcome update') }}
+            </div>
+
+            <button class="btn btn-primary" type="submit">Save Outcome</button>
+            <a class="btn" href="{{ url_for('app.staff_dashboard') }}">Cancel</a>
+        </form>
+    </section>
+
+    {% if selected_placement %}
+        <section class="panel">
+            <h2 class="section-heading">Selected Placement</h2>
+            <div class="grid-two summary-grid">
+                <div><strong>ID:</strong> {{ selected_placement.id }}</div>
+                <div><strong>Placement type:</strong> {{ selected_placement.placement_type }}</div>
+                <div><strong>Child age:</strong> {{ selected_placement.child_age }}</div>
+                <div><strong>Carer age:</strong> {{ selected_placement.carer_age }}</div>
+                <div><strong>Current end reason:</strong> {{ selected_placement.placement_end_reason or 'Not set' }}</div>
+                <div><strong>Current breakdown flag:</strong> {{ 'Yes' if (selected_placement.breakdown_flag or selected_placement.breakdown_occurred) else 'No' }}</div>
+            </div>
+        </section>
+    {% endif %}
+{% endblock %}
+

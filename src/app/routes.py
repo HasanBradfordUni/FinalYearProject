@@ -3,7 +3,9 @@ from flask_login import login_required, current_user, login_user, logout_user
 from functools import wraps
 from .forms import (LoginForm, UserForm, UserEditForm, PlacementUploadForm,
                     BulkUploadForm, PredictionForm, ComparisonForm,
-                    ForgotPasswordForm, ChangePasswordForm, ResetPasswordForm)
+                    ForgotPasswordForm, ChangePasswordForm, ResetPasswordForm,
+                    PlacementOutcomeForm,
+                    GENDER_CHOICES, ETHNICITY_CHOICES)
 from .models import (create_connection, create_tables, authenticate_user,
                      get_user_by_id, get_all_users, create_user, update_user,
                      delete_user_by_id, add_placement_record, get_placement_by_id,
@@ -14,18 +16,24 @@ from .models import (create_connection, create_tables, authenticate_user,
                      get_system_settings, update_system_settings, generate_breakdown_recommendations,
                      get_prediction_by_id, get_comparison_by_id, get_breakdown_patterns_by_duration,
                      get_user_by_identifier, verify_user_password, update_user_password,
-                     issue_temporary_password, get_prediction_numeric_averages)
+                     issue_temporary_password, get_prediction_numeric_averages,
+                     update_placement_outcome as update_placement_outcome_record)
 from .utils import (prepare_prediction_input, generate_predictions_list,
                     extract_profile_from_form, compare_placement_options,
-                    process_bulk_upload)
+                    process_bulk_upload, generate_explainability_summary)
 import os
 import joblib
 import json
 import csv
+import re
+import hashlib
 import smtplib
 import secrets
+from pathlib import Path
+from datetime import datetime, timezone
 from io import StringIO
 from email.message import EmailMessage
+import pandas as pd
 from . import train_models
 from .permissions import has_permission, normalize_role
 
@@ -37,6 +45,23 @@ db_path = os.path.join(os.path.dirname(__file__), 'static', 'placements.db')
 connection = create_connection(db_path)
 if connection:
     create_tables(connection)
+
+MODEL_RETRAIN_UPLOAD_DIR = Path(__file__).resolve().parent / "static" / "uploads" / "retraining"
+RETRAIN_REQUIRED_FIELDS = train_models.FEATURE_COLUMNS + [train_models.PLACEMENT_COLUMN, train_models.REGRESSION_TARGET]
+RETRAIN_CRITICAL_FIELDS = list(getattr(train_models, "DEFAULT_CRITICAL_FIELDS", [train_models.PLACEMENT_COLUMN, train_models.REGRESSION_TARGET]))
+RETRAIN_MAPPING_CONFIG_PATH = MODEL_RETRAIN_UPLOAD_DIR / "mapping_profiles.json"
+RETRAIN_DEFAULT_MODE_CHOICES = [
+    ("", "No default"),
+    ("ethnicities", "Ethnicities"),
+    ("genders", "Genders"),
+    ("child_ages", "Child Ages (0-18)"),
+    ("carer_ages", "Carer Ages (25-75)"),
+    ("boolean", "Boolean (True/False)"),
+    ("custom", "Custom numeric range"),
+]
+RETRAIN_DEFAULT_MODE_SET = {mode for mode, _ in RETRAIN_DEFAULT_MODE_CHOICES if mode}
+RETRAIN_GENDER_VALUES = [value for value, _ in GENDER_CHOICES]
+RETRAIN_ETHNICITY_VALUES = [value for value, _ in ETHNICITY_CHOICES]
 
 
 def _generate_temporary_password(length=12):
@@ -79,6 +104,102 @@ def _send_temporary_password_email(to_email, username, temporary_password):
         print(f"Warning: failed to send temporary password email: {exc}")
         return False
 
+
+def _normalize_column_name(column_name):
+    return re.sub(r"[^a-z0-9]+", "", str(column_name).strip().lower())
+
+
+def _suggest_column_mapping(headers):
+    header_lookup = {_normalize_column_name(header): header for header in headers}
+    aliases = {
+        "Carer Gender": ["Carer Gender Composition"],
+        "Carer Ethnicity": ["Carer Ethnicity Or Religion"],
+    }
+
+    suggested = {}
+    for field in RETRAIN_REQUIRED_FIELDS:
+        default_match = header_lookup.get(_normalize_column_name(field))
+        if default_match:
+            suggested[field] = default_match
+            continue
+
+        alias_match = None
+        for alias in aliases.get(field, []):
+            alias_match = header_lookup.get(_normalize_column_name(alias))
+            if alias_match:
+                break
+        suggested[field] = alias_match
+
+    return suggested
+
+
+def _headers_signature(headers):
+    normalized = [_normalize_column_name(header) for header in headers if str(header).strip()]
+    payload = "|".join(sorted(normalized))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _load_mapping_profiles():
+    if not RETRAIN_MAPPING_CONFIG_PATH.exists():
+        return {}
+    try:
+        with open(RETRAIN_MAPPING_CONFIG_PATH, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+            return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_mapping_profiles(payload):
+    MODEL_RETRAIN_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    with open(RETRAIN_MAPPING_CONFIG_PATH, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+
+
+def _get_saved_mapping_profile(headers):
+    profiles = _load_mapping_profiles()
+    return profiles.get(_headers_signature(headers), {})
+
+
+def _persist_mapping_profile(headers, profile):
+    profiles = _load_mapping_profiles()
+    signature = _headers_signature(headers)
+    profiles[signature] = {
+        **profile,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _save_mapping_profiles(profiles)
+
+
+def _read_csv_headers(dataset_path):
+    return [str(col) for col in pd.read_csv(dataset_path, nrows=1).columns]
+
+
+def _summarize_dataset_fields(headers):
+    required_set = set(RETRAIN_REQUIRED_FIELDS)
+    present_required = [field for field in RETRAIN_REQUIRED_FIELDS if field in headers]
+    missing_required = [field for field in RETRAIN_REQUIRED_FIELDS if field not in headers]
+    extra_fields = [header for header in headers if header not in required_set]
+    return present_required, missing_required, extra_fields
+
+
+def _normalize_default_config(raw_value):
+    """Normalize saved default configuration so templates can render consistently."""
+    if not isinstance(raw_value, dict):
+        return {"mode": "", "start": "", "end": ""}
+
+    mode = str(raw_value.get("mode", "")).strip().lower()
+    if mode not in RETRAIN_DEFAULT_MODE_SET:
+        mode = ""
+
+    start = raw_value.get("start", "")
+    end = raw_value.get("end", "")
+    return {
+        "mode": mode,
+        "start": "" if start is None else str(start),
+        "end": "" if end is None else str(end),
+    }
+
 def _load_models():
     model_search_paths = [
         os.path.join(os.path.dirname(__file__), 'static', 'models'),
@@ -120,6 +241,32 @@ except Exception as e:
         "placement_encoder": None,
         "metadata": {},
     }
+
+
+def _run_model_retraining(
+    dataset_path=None,
+    column_mapping=None,
+    missing_defaults=None,
+    critical_fields=None,
+    exclude_missing_critical=False,
+):
+    """Run training, reload in-memory assets, and return success state plus message."""
+    global model_assets
+    try:
+        train_models.main(
+            dataset_path=dataset_path,
+            column_mapping=column_mapping,
+            missing_defaults=missing_defaults,
+            critical_fields=critical_fields,
+            exclude_missing_critical=exclude_missing_critical,
+        )
+        model_assets = _load_models()
+        log_audit(connection, current_user.id, 'models_retrained', model_assets.get('models_path'))
+        return True, 'Models retrained and reloaded successfully.'
+    except Exception as exc:
+        log_audit(connection, current_user.id, 'models_retrain_failed', str(exc))
+        return False, f'Model retraining failed: {exc}'
+
 
 # Permission-based access control decorator
 def permission_required(permission):
@@ -401,6 +548,63 @@ def view_placement(placement_id):
 
     return render_template('placement_detail.html', placement=placement)
 
+
+@app.route('/placement-outcome', methods=['GET', 'POST'])
+@permission_required('update_placement_outcome')
+def update_placement_outcome():
+    """Update closure outcomes for placements created in the system."""
+    uploaded_by = None if has_permission(current_user.role, 'view_all_placements') else current_user.id
+    placements = get_recent_placements(connection, limit=500, uploaded_by=uploaded_by)
+
+    form = PlacementOutcomeForm()
+    form.placement_id.choices = [
+        (int(row['id']), f"#{row['id']} - {row['placement_type']} (Created {row['created_at']})")
+        for row in placements
+    ]
+
+    if not form.placement_id.choices:
+        flash('No placement records are available to update.', 'warning')
+        return redirect(url_for('app.staff_dashboard'))
+
+    selectable_ids = {choice[0] for choice in form.placement_id.choices}
+    requested_id = request.args.get('placement_id', type=int)
+    if request.method == 'GET':
+        if requested_id in selectable_ids:
+            form.placement_id.data = requested_id
+        elif not form.placement_id.data:
+            form.placement_id.data = form.placement_id.choices[0][0]
+
+    selected_placement = get_placement_by_id(connection, form.placement_id.data, uploaded_by=uploaded_by)
+
+    if form.validate_on_submit():
+        placement_id = form.placement_id.data
+        selected_placement = get_placement_by_id(connection, placement_id, uploaded_by=uploaded_by)
+        if not selected_placement:
+            flash('Placement record not found or not accessible.', 'warning')
+            return redirect(url_for('app.update_placement_outcome'))
+
+        update_success = update_placement_outcome_record(
+            connection,
+            placement_id=placement_id,
+            end_reason=form.placement_end_reason.data,
+            days_lasted=form.days_placement_lasted.data,
+            notes=(form.outcome_notes.data or '').strip(),
+            uploaded_by=uploaded_by,
+        )
+        if not update_success:
+            flash('Could not update placement outcome. Please try again.', 'danger')
+            return redirect(url_for('app.update_placement_outcome', placement_id=placement_id))
+
+        log_audit(connection, current_user.id, 'placement_outcome_updated', placement_id)
+        flash('Placement outcome updated successfully.', 'success')
+        return redirect(url_for('app.view_placement', placement_id=placement_id))
+
+    return render_template(
+        'placement_outcome_update.html',
+        form=form,
+        selected_placement=selected_placement,
+    )
+
 # ============== Prediction Routes ==============
 
 @app.route('/predict', methods=['GET', 'POST'])
@@ -410,6 +614,7 @@ def predict():
     form = PredictionForm()
     if form.validate_on_submit():
         numeric_defaults = get_prediction_numeric_averages(connection)
+        profile_data = extract_profile_from_form(form)
         input_data = prepare_prediction_input(
             form,
             model_assets["feature_encoders"],
@@ -423,6 +628,12 @@ def predict():
             breakdown_model=model_assets["breakdown_model"],
             placement_feature_names=model_assets["metadata"].get("classification_features"),
             breakdown_feature_names=model_assets["metadata"].get("breakdown_features"),
+        )
+        explainability_summary = generate_explainability_summary(
+            user_profile=profile_data,
+            predictions=predictions,
+            feature_names=model_assets["metadata"].get("classification_features"),
+            feature_importances=getattr(model_assets["rf_model"], "feature_importances_", None),
         )
 
         # Save prediction to database
@@ -444,6 +655,7 @@ def predict():
                              carer_ethnicity=form.carer_ethnicity.data,
                              eh_involvement=form.eh_involvement.data,
                              yot_involvement=form.yot_involvement.data,
+                             explainability_summary=explainability_summary,
                              predictions=predictions)
 
     return render_template('index.html', form=form)
@@ -472,6 +684,12 @@ def compare():
             placement_feature_names=model_assets["metadata"].get("classification_features"),
             breakdown_feature_names=model_assets["metadata"].get("breakdown_features"),
         )
+        explainability_summary = generate_explainability_summary(
+            user_profile=profile_data,
+            predictions=comparisons,
+            feature_names=model_assets["metadata"].get("classification_features"),
+            feature_importances=getattr(model_assets["rf_model"], "feature_importances_", None),
+        )
 
         # Save comparison to database
         comparison_id = save_comparison(connection, profile_data, comparisons, current_user.id)
@@ -480,6 +698,7 @@ def compare():
         return render_template('comparison_results.html',
                              comparison_id=comparison_id,
                              profile=profile_data,
+                             explainability_summary=explainability_summary,
                              predictions=comparisons)
 
     return render_template('compare.html', form=form)
@@ -521,19 +740,246 @@ def breakdown_analysis_staff():
     )
 
 
-@app.route('/admin/retrain-models', methods=['POST'])
-@permission_required('admin_manage_system')
-def retrain_models():
-    """Retrain all models from the latest uploaded dataset and reload in-memory artifacts."""
-    global model_assets
+@app.route('/model-retraining', methods=['GET', 'POST'])
+@permission_required('manage_model_retraining')
+def model_retraining():
+    """Upload retraining CSV and forward users to the field-mapping workflow."""
+    metadata = model_assets.get('metadata') or {}
+
+    if request.method == 'POST':
+        csv_file = request.files.get('training_csv')
+        if not csv_file or not csv_file.filename:
+            flash('Please choose a CSV file to continue.', 'warning')
+            return redirect(url_for('app.model_retraining'))
+        if not csv_file.filename.lower().endswith('.csv'):
+            flash('Only CSV files are supported for retraining.', 'warning')
+            return redirect(url_for('app.model_retraining'))
+
+        try:
+            uploaded_df = pd.read_csv(csv_file.stream)
+            headers = [str(col) for col in uploaded_df.columns]
+            if not headers:
+                raise ValueError('Uploaded CSV has no header row.')
+
+            MODEL_RETRAIN_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+            dataset_token = f"retrain_{current_user.id}_{secrets.token_hex(8)}.csv"
+            dataset_path = MODEL_RETRAIN_UPLOAD_DIR / dataset_token
+            uploaded_df.to_csv(dataset_path, index=False)
+
+            return redirect(url_for('app.model_retraining_mapping', dataset_token=dataset_token))
+        except Exception as exc:
+            flash(f'Could not process uploaded CSV: {exc}', 'danger')
+            return redirect(url_for('app.model_retraining'))
+
+    return render_template(
+        'model_retraining.html',
+        models_path=model_assets.get('models_path'),
+        metadata=metadata,
+    )
+
+
+@app.route('/model-retraining/mapping/<dataset_token>', methods=['GET', 'POST'])
+@permission_required('manage_model_retraining')
+def model_retraining_mapping(dataset_token):
+    """Map CSV fields to model fields, handle missing data, and execute retraining."""
+    safe_token = os.path.basename(dataset_token)
+    dataset_path = MODEL_RETRAIN_UPLOAD_DIR / safe_token
+    if not safe_token or safe_token != dataset_token or not dataset_path.exists():
+        flash('Uploaded dataset could not be found. Please upload the CSV again.', 'warning')
+        return redirect(url_for('app.model_retraining'))
+
+    metadata = model_assets.get('metadata') or {}
+
     try:
-        train_models.main()
-        model_assets = _load_models()
-        log_audit(connection, current_user.id, 'models_retrained', model_assets.get('models_path'))
-        flash('Models retrained and reloaded successfully.', 'success')
+        csv_headers = _read_csv_headers(dataset_path)
     except Exception as exc:
-        flash(f'Model retraining failed: {exc}', 'danger')
-    return redirect(url_for('app.admin_dashboard'))
+        flash(f'Could not read uploaded dataset headers: {exc}', 'danger')
+        return redirect(url_for('app.model_retraining'))
+
+    present_required, missing_required, extra_fields = _summarize_dataset_fields(csv_headers)
+
+    saved_profile = _get_saved_mapping_profile(csv_headers)
+    suggested_mapping = _suggest_column_mapping(csv_headers)
+    saved_mapping = saved_profile.get('column_mapping', {}) if isinstance(saved_profile, dict) else {}
+    suggested_mapping.update({field: value for field, value in saved_mapping.items() if value in csv_headers})
+    raw_saved_defaults = saved_profile.get('missing_defaults', {}) if isinstance(saved_profile, dict) else {}
+    suggested_default_configs = {
+        field: _normalize_default_config(raw_saved_defaults.get(field))
+        for field in RETRAIN_REQUIRED_FIELDS
+    }
+    saved_exclude_missing = bool(saved_profile.get('exclude_missing_critical', False)) if isinstance(saved_profile, dict) else False
+    saved_ignore_extra = bool(saved_profile.get('ignore_extra_fields', True)) if isinstance(saved_profile, dict) else True
+
+    if request.method == 'POST':
+        column_mapping = {}
+        missing_defaults = {}
+        default_config_errors = []
+        for field in RETRAIN_REQUIRED_FIELDS:
+            selected_column = request.form.get(f"map__{field}", '').strip()
+            default_mode = request.form.get(f"default_mode__{field}", '').strip().lower()
+            custom_start = request.form.get(f"default_custom_start__{field}", '').strip()
+            custom_end = request.form.get(f"default_custom_end__{field}", '').strip()
+
+            if selected_column:
+                column_mapping[field] = selected_column
+
+            if not default_mode:
+                continue
+
+            if default_mode not in RETRAIN_DEFAULT_MODE_SET:
+                default_config_errors.append(f"{field}: unsupported default mode '{default_mode}'")
+                continue
+
+            default_config = {"mode": default_mode}
+            if default_mode == 'custom':
+                if not custom_start or not custom_end:
+                    default_config_errors.append(f"{field}: custom range requires both start and end")
+                    continue
+                try:
+                    start_value = float(custom_start)
+                    end_value = float(custom_end)
+                except ValueError:
+                    default_config_errors.append(f"{field}: custom range values must be numeric")
+                    continue
+                if start_value > end_value:
+                    default_config_errors.append(f"{field}: custom range start must be <= end")
+                    continue
+                default_config["start"] = start_value
+                default_config["end"] = end_value
+
+            missing_defaults[field] = default_config
+
+        exclude_missing_critical = request.form.get('exclude_missing_critical') == 'on'
+        ignore_extra_fields = request.form.get('ignore_extra_fields') == 'on'
+
+        invalid_mappings = [
+            f"{field} -> {source}"
+            for field, source in column_mapping.items()
+            if source not in csv_headers
+        ]
+        unresolved_critical = [
+            field for field in RETRAIN_CRITICAL_FIELDS
+            if not column_mapping.get(field) and not missing_defaults.get(field)
+        ]
+
+        if invalid_mappings:
+            flash(f"Some mappings are invalid for the uploaded CSV: {', '.join(invalid_mappings)}", 'warning')
+        if default_config_errors:
+            flash(f"Please fix default range settings: {', '.join(default_config_errors)}", 'warning')
+        if unresolved_critical:
+            flash(
+                f"Critical fields must be mapped or have defaults before retraining: {', '.join(unresolved_critical)}",
+                'danger',
+            )
+        if extra_fields and not ignore_extra_fields:
+            flash(
+                'Extra CSV fields were detected. Tick "Ignore extra CSV fields" to continue with retraining.',
+                'warning',
+            )
+
+        if default_config_errors or invalid_mappings or unresolved_critical or (extra_fields and not ignore_extra_fields):
+            current_default_configs = {
+                field: _normalize_default_config(missing_defaults.get(field))
+                for field in RETRAIN_REQUIRED_FIELDS
+            }
+            return render_template(
+                'model_retraining_mapping.html',
+                models_path=model_assets.get('models_path'),
+                metadata=metadata,
+                dataset_token=safe_token,
+                csv_headers=csv_headers,
+                required_fields=RETRAIN_REQUIRED_FIELDS,
+                critical_fields=RETRAIN_CRITICAL_FIELDS,
+                present_required=present_required,
+                missing_required=missing_required,
+                extra_fields=extra_fields,
+                suggested_mapping=column_mapping,
+                suggested_default_configs=current_default_configs,
+                exclude_missing_critical=exclude_missing_critical,
+                ignore_extra_fields=ignore_extra_fields,
+                default_mode_choices=RETRAIN_DEFAULT_MODE_CHOICES,
+            )
+
+        success, message = _run_model_retraining(
+            dataset_path=str(dataset_path),
+            column_mapping=column_mapping,
+            missing_defaults=missing_defaults,
+            critical_fields=RETRAIN_CRITICAL_FIELDS,
+            exclude_missing_critical=exclude_missing_critical,
+        )
+        flash(message, 'success' if success else 'danger')
+
+        if success:
+            _persist_mapping_profile(
+                csv_headers,
+                {
+                    'column_mapping': column_mapping,
+                    'missing_defaults': missing_defaults,
+                    'exclude_missing_critical': exclude_missing_critical,
+                    'ignore_extra_fields': ignore_extra_fields,
+                },
+            )
+            return redirect(url_for('app.model_retraining'))
+
+        return render_template(
+            'model_retraining_mapping.html',
+            models_path=model_assets.get('models_path'),
+            metadata=metadata,
+            dataset_token=safe_token,
+            csv_headers=csv_headers,
+            required_fields=RETRAIN_REQUIRED_FIELDS,
+            critical_fields=RETRAIN_CRITICAL_FIELDS,
+            present_required=present_required,
+            missing_required=missing_required,
+            extra_fields=extra_fields,
+            suggested_mapping=column_mapping,
+            suggested_default_configs={
+                field: _normalize_default_config(missing_defaults.get(field))
+                for field in RETRAIN_REQUIRED_FIELDS
+            },
+            exclude_missing_critical=exclude_missing_critical,
+            ignore_extra_fields=ignore_extra_fields,
+            default_mode_choices=RETRAIN_DEFAULT_MODE_CHOICES,
+        )
+
+    if missing_required:
+        flash(
+            f"Uploaded CSV is missing required headers: {', '.join(missing_required)}. Map these fields or provide defaults.",
+            'warning',
+        )
+
+    return render_template(
+        'model_retraining_mapping.html',
+        models_path=model_assets.get('models_path'),
+        metadata=metadata,
+        dataset_token=safe_token,
+        csv_headers=csv_headers,
+        required_fields=RETRAIN_REQUIRED_FIELDS,
+        critical_fields=RETRAIN_CRITICAL_FIELDS,
+        present_required=present_required,
+        missing_required=missing_required,
+        extra_fields=extra_fields,
+        suggested_mapping=suggested_mapping,
+        suggested_default_configs=suggested_default_configs,
+        exclude_missing_critical=saved_exclude_missing,
+        ignore_extra_fields=saved_ignore_extra,
+        default_mode_choices=RETRAIN_DEFAULT_MODE_CHOICES,
+    )
+
+
+@app.route('/admin/retrain-models', methods=['POST'])
+@permission_required('manage_model_retraining')
+def retrain_models():
+    """Backward-compatible endpoint that redirects users into the mapping workflow."""
+    flash('Upload a CSV and map fields before retraining models.', 'info')
+    return redirect(url_for('app.model_retraining'))
+
+
+@app.route('/admin/retrain-models', methods=['GET'])
+@permission_required('manage_model_retraining')
+def retrain_models_legacy_get():
+    """Legacy GET alias for environments linking directly to the old endpoint."""
+    return redirect(url_for('app.model_retraining'))
 
 
 @app.route('/export/prediction/<int:prediction_id>.csv')
@@ -560,14 +1006,13 @@ def export_prediction_csv(prediction_id):
     payload = prediction['prediction_payload']
     if payload:
         writer.writerow([])
-        writer.writerow(['Placement Type', 'Estimated Duration (days)', 'Stability (%)', 'Breakdown Likelihood (%)', 'Net Stability'])
+        writer.writerow(['Placement Type', 'Estimated Duration (days)', 'Stability (%)', 'Breakdown Likelihood (%)'])
         for row in json.loads(payload):
             writer.writerow([
                 row.get('type'),
                 row.get('duration'),
                 row.get('stability'),
                 row.get('breakdown_likelihood'),
-                row.get('net_stability'),
             ])
 
     return Response(
@@ -590,7 +1035,7 @@ def export_comparison_csv(comparison_id):
     writer.writerow(['Comparison ID', comparison['id']])
     writer.writerow(['Created At', comparison['created_at']])
     writer.writerow([])
-    writer.writerow(['Placement Type', 'Estimated Duration (days)', 'Stability (%)', 'Breakdown Likelihood (%)', 'Net Stability'])
+    writer.writerow(['Placement Type', 'Estimated Duration (days)', 'Stability (%)', 'Breakdown Likelihood (%)'])
 
     for row in json.loads(comparison['comparison_results'] or '[]'):
         writer.writerow([
@@ -598,7 +1043,6 @@ def export_comparison_csv(comparison_id):
             row.get('duration'),
             row.get('stability'),
             row.get('breakdown_likelihood'),
-            row.get('net_stability'),
         ])
 
     return Response(
@@ -628,6 +1072,7 @@ def export_breakdown_analysis_csv():
         mimetype='text/csv',
         headers={'Content-Disposition': 'attachment; filename=breakdown_analysis.csv'}
     )
+
 
 @app.route('/stability-trends')
 @permission_required('stability_trends')

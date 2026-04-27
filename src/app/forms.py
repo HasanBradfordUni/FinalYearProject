@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
-from wtforms import StringField, PasswordField, SelectField, IntegerField, SubmitField, SelectMultipleField, BooleanField
+from wtforms import StringField, PasswordField, SelectField, IntegerField, SubmitField, SelectMultipleField, BooleanField, TextAreaField
 from wtforms.validators import DataRequired, InputRequired, Email, Length, NumberRange, EqualTo, Optional
 from .permissions import get_role_choices
 
@@ -40,6 +40,14 @@ PLACEMENT_TYPE_CHOICES = [
     ('Kinship', 'Kinship'),
     ('External Fostering', 'External Fostering'),
     ('In-House Fostering', 'In-House Fostering')
+]
+
+PLACEMENT_END_REASON_CHOICES = [
+    ('Stable end', 'Stable end'),
+    ('Breakdown', 'Breakdown'),
+    ('Planned move', 'Planned move'),
+    ('Unplanned move', 'Unplanned move'),
+    ('Other', 'Other'),
 ]
 
 BOOLEAN_CHOICES = [('True', 'Yes'), ('False', 'No')]
@@ -110,6 +118,18 @@ class PlacementUploadForm(FlaskForm):
 class BulkUploadForm(FlaskForm):
     csv_file = FileField('CSV File', validators=[DataRequired(), FileAllowed(['csv'], 'CSV files only!')])
     submit = SubmitField('Upload CSV')
+
+
+class PlacementOutcomeForm(FlaskForm):
+    placement_id = SelectField('Placement Record', coerce=int, validators=[DataRequired()])
+    placement_end_reason = SelectField('Placement End Reason', choices=PLACEMENT_END_REASON_CHOICES, validators=[DataRequired()])
+    days_placement_lasted = IntegerField(
+        'Days Placement Lasted',
+        validators=[InputRequired(), NumberRange(min=1, max=10000)],
+        render_kw={'min': 1, 'max': 10000, 'step': 1},
+    )
+    outcome_notes = TextAreaField('Outcome Notes (optional)', validators=[Optional(), Length(max=1000)])
+    submit = SubmitField('Save Placement Outcome')
 
 # ============== Prediction Forms ==============
 
