@@ -35,8 +35,18 @@ def app_client(monkeypatch):
     def _loader(user_id):
         return users.get(int(user_id))
 
+    # Create a mock connection with cursor support
+    mock_connection = object()
+    mock_cursor = types.SimpleNamespace()
+    mock_cursor.execute = lambda *_args, **_kwargs: None
+    mock_cursor.fetchone = lambda: None
+    mock_cursor.fetchall = lambda: []
+    
+    mock_connection_obj = types.SimpleNamespace()
+    mock_connection_obj.cursor = lambda: mock_cursor
+
     monkeypatch.setattr(login_manager, "_user_callback", _loader)
-    monkeypatch.setattr(routes, "connection", object())
+    monkeypatch.setattr(routes, "connection", mock_connection_obj)
     monkeypatch.setattr(routes, "flash", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(routes, "render_template", lambda template, **_ctx: f"TEMPLATE:{template}")
 
@@ -237,6 +247,7 @@ def test_view_placement_get_expected_behavior(app_client, monkeypatch):
 def test_predict_and_compare_routes_expected_behavior(app_client, monkeypatch):
     _, client, login_as = app_client
     login_as("staff", user_id=30)
+    monkeypatch.setattr(routes, "get_prediction_numeric_averages", lambda *_args, **_kwargs: {"child_age": 10, "child_prior_placements": 1, "missing_episodes": 0, "sibling_group_size": 1, "carer_age": 40})
     monkeypatch.setattr(routes, "prepare_prediction_input", lambda *_args, **_kwargs: [[1] * 15])
     monkeypatch.setattr(routes, "generate_predictions_list", lambda *_args, **_kwargs: [{"type": "Kinship", "duration": 10, "stability": 50, "breakdown_likelihood": 20}])
     monkeypatch.setattr(routes, "generate_explainability_summary", lambda *_args, **_kwargs: "Test explainability summary")
@@ -247,7 +258,7 @@ def test_predict_and_compare_routes_expected_behavior(app_client, monkeypatch):
     monkeypatch.setattr(routes, "compare_placement_options", lambda *_args, **_kwargs: [{"type": "Kinship"}, {"type": "External Fostering"}])
 
     predict_get = client.get("/predict")
-    predict_post = client.post("/predict", data={"child_age": 10})
+    predict_post = client.post("/predict", data={"child_age": "10"})
     assert predict_get.status_code == 200
     assert predict_post.status_code == 200
 
@@ -331,10 +342,25 @@ def test_user_management_and_settings_routes_expected_behavior(app_client, monke
     assert client.get("/users/add").status_code == 200
     assert client.post(
         "/users/add",
-        data={"username": "newuser", "email": "new@example.com", "password": "Password123", "confirm_password": "Password123", "role": "placement_officer"},
+        data={
+            "username": "newuser",
+            "email": "new@example.com",
+            "password": "Password123",
+            "confirm_password": "Password123",
+            "role": "placement_officer",
+            "submit": "Create User",
+        },
     ).status_code == 302
     assert client.get("/users/70/edit").status_code == 200
-    assert client.post("/users/70/edit", data={"username": "u", "email": "u@example.com", "role": "placement_officer"}).status_code == 302
+    assert client.post(
+        "/users/70/edit",
+        data={
+            "username": "u",
+            "email": "u@example.com",
+            "role": "placement_officer",
+            "submit": "Update User",
+        }
+    ).status_code == 302
     assert client.post("/users/70/delete").status_code == 302
 
     assert client.get("/settings").status_code == 200

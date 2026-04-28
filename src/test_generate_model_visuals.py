@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 import joblib
 import numpy as np
@@ -73,26 +74,25 @@ def test_plot_functions_create_output_files_expected_behavior(tmp_path):
     dataset_path = tmp_path / "dataset.csv"
     dataset.to_csv(dataset_path, index=False)
 
-    x = gmv._prepare_features(
-        dataset,
-        [
-            "Child Age At Placement",
-            "Child Gender",
-            "Child Ethnicity",
-            "Child Prior Placements",
-            "Returning Child",
-            "Missing Episodes",
-            "Sibling Group Size",
-            "Placed With Siblings",
-            "Carer Age",
-            "Carer Gender",
-            "Carer Ethnicity",
-            "EH involvement",
-            "YOT involvement",
-            "Placement Sequence Number",
-            "Placement Type",
-        ],
-    )
+    feature_cols = [
+        "Child Age At Placement",
+        "Child Gender",
+        "Child Ethnicity",
+        "Child Prior Placements",
+        "Returning Child",
+        "Missing Episodes",
+        "Sibling Group Size",
+        "Placed With Siblings",
+        "Carer Age",
+        "Carer Gender",
+        "Carer Ethnicity",
+        "EH involvement",
+        "YOT involvement",
+        "Placement Sequence Number",
+        "Placement Type",
+    ]
+    
+    x = gmv._prepare_features(dataset, feature_cols)
     y_reg = dataset["Days Placed"].to_numpy()
 
     y_cls_encoder = LabelEncoder()
@@ -106,6 +106,14 @@ def test_plot_functions_create_output_files_expected_behavior(tmp_path):
     joblib.dump(rf_classifier, models_dir / "rf_classifier.pkl")
     joblib.dump(rf_regressor, models_dir / "rf_regressor.pkl")
     joblib.dump(rf_classifier, models_dir / "rf_model.pkl")
+    
+    # Save metadata as JSON with correct format
+    metadata = {
+        "classification_features": feature_cols,
+        "regression_features": feature_cols,
+        "breakdown_features": feature_cols
+    }
+    (models_dir / "model_metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
 
     output_dir = tmp_path / "visuals"
 
@@ -142,7 +150,8 @@ def test_argument_parser_and_main_executes_expected_behavior(tmp_path, monkeypat
     dataset_path = tmp_path / "dataset.csv"
     dataset.to_csv(dataset_path, index=False)
 
-    x = gmv._prepare_features(dataset, gmv._infer_feature_columns(dataset, {"Days Placed", "Placement Type"}) + ["Placement Type"])
+    feature_cols = gmv._infer_feature_columns(dataset, {"Days Placed", "Placement Type"}) + ["Placement Type"]
+    x = gmv._prepare_features(dataset, feature_cols)
     y_cls = LabelEncoder().fit_transform(dataset["Placement Type"])
     y_reg = dataset["Days Placed"]
     rf_classifier = RandomForestClassifier(n_estimators=10, random_state=2).fit(x.drop(columns=["Placement Type"]), y_cls)
@@ -153,7 +162,12 @@ def test_argument_parser_and_main_executes_expected_behavior(tmp_path, monkeypat
     joblib.dump(rf_classifier, models_dir / "rf_classifier.pkl")
     joblib.dump(rf_regressor, models_dir / "rf_regressor.pkl")
     joblib.dump(rf_classifier, models_dir / "rf_model.pkl")
-    joblib.dump({"dummy": "metadata"}, models_dir / "model_metadata.json")
+    # Save metadata as JSON instead of pickle
+    metadata = {
+        "classification_features": feature_cols,
+        "regression_features": feature_cols,
+    }
+    (models_dir / "model_metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
 
     monkeypatch.setattr(
         "sys.argv",

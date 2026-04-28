@@ -123,7 +123,7 @@ def test_main_orchestrates_pipeline_expected_behavior(monkeypatch):
 
     monkeypatch.setattr(tm, "_resolve_dataset_path", lambda: Path("dummy.csv"))
 
-    def fake_load(_path):
+    def fake_load(_path, **kwargs):
         calls["load"] = True
         df = pd.DataFrame([[1, 2], [3, 4]], columns=["a", tm.PLACEMENT_COLUMN])
         return df, df[["a"]], df, [0, 1], [1, 0], [10, 20], {}, type("P", (), {"classes_": ["Kinship"]})()
