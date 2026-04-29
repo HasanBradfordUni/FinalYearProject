@@ -93,10 +93,10 @@ def test_login_get_and_failed_post_expected_behavior(app_client, monkeypatch):
 
 def test_login_post_success_redirects_dashboard_expected_behavior(app_client, monkeypatch):
     _, client, _ = app_client
-    user = _User(99, role="staff", username="ok")
+    user = _User(99, role="staff", username="testuser")
     monkeypatch.setattr(routes, "authenticate_user", lambda *_args, **_kwargs: user)
 
-    response = client.post("/login", data={"username": "ok", "password": "pass123456", "remember_me": "y"})
+    response = client.post("/login", data={"username": "testuser", "password": "pass123456"})
     assert response.status_code == 302
     assert "/dashboard" in response.headers["Location"]
 
@@ -211,7 +211,7 @@ def test_upload_routes_expected_behavior(app_client, monkeypatch):
             "child_prior_placements": 1,
             "returning_child": "False",
             "missing_episodes": 0,
-            "sibling_group_size": 0,
+            "sibling_group_size": 1,
             "placed_with_siblings": "False",
             "carer_age": 40,
             "carer_gender": "Female",
@@ -219,6 +219,7 @@ def test_upload_routes_expected_behavior(app_client, monkeypatch):
             "eh_involvement": "False",
             "yot_involvement": "False",
             "placement_type": "Kinship",
+            "submit": "Upload Placement",
         },
     )
     assert get_resp.status_code == 200
@@ -355,9 +356,10 @@ def test_user_management_and_settings_routes_expected_behavior(app_client, monke
     assert client.post(
         "/users/70/edit",
         data={
-            "username": "u",
-            "email": "u@example.com",
+            "username": "updateduser",
+            "email": "updated@example.com",
             "role": "placement_officer",
+            "is_active": "y",
             "submit": "Update User",
         }
     ).status_code == 302
