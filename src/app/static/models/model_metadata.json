@@ -56,10 +56,33 @@
     "Carer Ethnicity"
   ],
   "placement_classes": [
-    "External Fostering",
-    "In-House Fostering",
-    "Kinship",
-    "Residential"
+    "Crisis Foster Care",
+    "EPP: Fostering for Adoption, placed with approved adopter",
+    "Fostering - Unregistered Carer",
+    "Fostering \u2013 long term",
+    "Fostering \u2013 short term",
+    "Kinship - Unregistered Carer",
+    "Kinship - long term",
+    "Kinship - short term",
+    "Mother And Baby Unit",
+    "NHS/Other Hospital",
+    "Placed for Adoption (placement order) not with former foster carers",
+    "Placed for Adoption (placement order) with former foster carers",
+    "Placed for Adoption (with consent) not with former foster carers",
+    "Placed for Adoption (with consent) with former foster carers",
+    "Placed with Parents",
+    "Residential School",
+    "Residential Unit (Children's Home)",
+    "Respite Unit",
+    "Secure Unit",
+    "Semi-independent supported accommodation",
+    "Support Care",
+    "Supported Lodgings Short Term",
+    "Temporary Placement",
+    "Unregistered - awaiting alternative",
+    "Unregistered - in child's best interest",
+    "Unregistered Placement",
+    "Young Offenders Institution/Prison"
   ],
   "breakdown_threshold_days": 365
 }
